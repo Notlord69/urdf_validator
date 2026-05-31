@@ -1,6 +1,6 @@
 import os
 
-from urdf_validator_main.report.models import SchemaReport, ValidationReport
+from urdf_validator_main.report.models import LinkPhysicsReport, SchemaReport, ValidationReport
 
 _GREEN = "\033[32m"
 _YELLOW = "\033[33m"
@@ -14,6 +14,7 @@ def format_report(report: ValidationReport) -> str:
     lines = []
     lines.extend(_header(report))
     lines.extend(_schema_section(report.schema))
+    lines.extend(_physics_section(report.links))
     return "\n".join(lines)
 
 
@@ -27,6 +28,33 @@ def _header(report: ValidationReport) -> list:
         f"║{title.ljust(width)}║",
         f"╚{bar}╝",
     ]
+
+
+def _physics_section(links: list) -> list:
+    if not links:
+        return ["[PHYSICS]  (no links)"]
+
+    n = len(links)
+    mass_exact = sum(1 for lnk in links if lnk.mass_confidence == "exact")
+    mass_missing = n - mass_exact
+    inertia_exact = sum(1 for lnk in links if lnk.inertia_confidence == "exact")
+    inertia_missing = n - inertia_exact
+
+    if mass_missing == 0 and inertia_missing == 0:
+        return [f"[PHYSICS]  {_GREEN}✓{_RESET} {n} links — all mass & inertia declared"]
+
+    summary = (
+        f"[PHYSICS]  {n} links — "
+        f"mass: {mass_exact} exact, {mass_missing} missing · "
+        f"inertia: {inertia_exact} exact, {inertia_missing} missing"
+    )
+    lines = [summary]
+    for lnk in links:
+        if lnk.mass_confidence == "missing" or lnk.inertia_confidence == "missing":
+            lines.append(
+                f"  {lnk.name:<20}  mass={lnk.mass_confidence}  inertia={lnk.inertia_confidence}"
+            )
+    return lines
 
 
 def _schema_section(schema: SchemaReport) -> list:

@@ -1,6 +1,6 @@
 # tests/test_formatter.py
 import pytest
-from urdf_validator_main.report.models import ValidationReport, SchemaReport
+from urdf_validator_main.report.models import ValidationReport, SchemaReport, LinkPhysicsReport
 from urdf_validator_main.report.formatter import format_report
 
 
@@ -12,6 +12,12 @@ def _report(status, criticals=None, warnings=None, infos=None, path="my_robot.ur
         infos=infos or [],
     )
     return ValidationReport(urdf_path=path, robot_name="test_robot", schema=schema)
+
+
+def _report_with_links(links):
+    r = ValidationReport(urdf_path="robot.urdf", robot_name="test_robot")
+    r.links = links
+    return r
 
 
 def test_format_report_returns_string():
@@ -86,3 +92,31 @@ def test_info_multiple_infos_shows_count_and_messages():
 def test_empty_urdf_path_renders_unknown():
     result = format_report(_report("PASS", path=""))
     assert "unknown" in result
+
+
+def test_physics_section_empty_links():
+    result = format_report(_report_with_links([]))
+    assert "[PHYSICS]" in result
+    assert "(no links)" in result
+
+
+def test_physics_section_all_exact():
+    links = [
+        LinkPhysicsReport(name="base_link", mass=1.0, mass_confidence="exact", inertia_confidence="exact"),
+        LinkPhysicsReport(name="arm_link", mass=0.5, mass_confidence="exact", inertia_confidence="exact"),
+    ]
+    result = format_report(_report_with_links(links))
+    assert "[PHYSICS]" in result
+    assert "all mass & inertia declared" in result
+    assert "missing" not in result
+
+
+def test_physics_section_some_missing():
+    links = [
+        LinkPhysicsReport(name="base_link", mass=1.0, mass_confidence="exact", inertia_confidence="exact"),
+        LinkPhysicsReport(name="sensor_frame", mass_confidence="missing", inertia_confidence="missing"),
+    ]
+    result = format_report(_report_with_links(links))
+    assert "[PHYSICS]" in result
+    assert "missing" in result
+    assert "sensor_frame" in result
