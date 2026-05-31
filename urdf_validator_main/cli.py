@@ -59,10 +59,7 @@ def main() -> None:
 
     result = load_urdf(path)
     if isinstance(result, ParseError):
-        print(
-            f"[ERROR] Failed to parse URDF: {os.path.basename(path)}"
-            f" — {result.message}"
-        )
+        print(f"[ERROR] {result.message}")
         sys.exit(2)
 
     report = ValidationReport(
