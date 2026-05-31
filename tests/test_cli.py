@@ -6,6 +6,7 @@ import pytest
 from urdf_validator_main.cli import main
 
 SAMPLE_DIR = Path(__file__).parent / "sample_urdf"
+BAD_URDF_DIR = Path(__file__).parent / "bad_urdf"
 
 _MINIMAL_PASS_URDF = """\
 <?xml version="1.0"?>
@@ -125,3 +126,21 @@ def test_output_physics_section_shows_link_count(monkeypatch, tmp_path, capsys):
     assert "[PHYSICS]" in out
     assert "(no links)" not in out
     assert "1 links" in out
+
+
+def test_broken_urdf_exits_2_no_crash(monkeypatch, capsys):
+    code = _run(monkeypatch, [str(BAD_URDF_DIR / "broken.urdf")])
+    assert code == 2
+    assert "[ERROR]" in capsys.readouterr().out
+
+
+def test_missing_mesh_no_crash(monkeypatch, capsys):
+    # Mesh existence check is deferred to v0.5 — no schema errors expected
+    code = _run(monkeypatch, [str(BAD_URDF_DIR / "missing_mesh.urdf")])
+    assert code == 0
+
+
+def test_nan_inertia_no_crash(monkeypatch, capsys):
+    # NaN inertia triggers WARN (exit 1) or ParseError (exit 2) — both acceptable
+    code = _run(monkeypatch, [str(BAD_URDF_DIR / "nan_inertia.urdf")])
+    assert code in (1, 2)
