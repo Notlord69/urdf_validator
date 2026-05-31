@@ -78,3 +78,38 @@ def test_output_dir_flag_silently_accepted(monkeypatch, tmp_path):
     urdf = tmp_path / "minimal.urdf"
     urdf.write_text(_MINIMAL_PASS_URDF)
     assert _run(monkeypatch, [str(urdf), "--output-dir", str(tmp_path)]) == 0
+
+
+_BROKEN_REF_URDF = """\
+<?xml version="1.0"?>
+<robot name="broken_bot">
+  <link name="base_link"/>
+  <joint name="j1" type="revolute">
+    <parent link="base_link"/>
+    <child link="nonexistent_link"/>
+    <limit lower="-1.0" upper="1.0" effort="10.0" velocity="1.0"/>
+  </joint>
+</robot>
+"""
+
+
+def test_schema_critical_urdf_exits_2(monkeypatch, tmp_path):
+    urdf = tmp_path / "broken_bot.urdf"
+    urdf.write_text(_BROKEN_REF_URDF)
+    assert _run(monkeypatch, [str(urdf)]) == 2
+
+
+def test_exit_code_mapping():
+    from urdf_validator_main.cli import _exit_code
+    from urdf_validator_main.report.models import ValidationReport, SchemaReport
+
+    def _report(status):
+        r = ValidationReport()
+        r.schema.status = status
+        return r
+
+    assert _exit_code(_report("PASS")) == 0
+    assert _exit_code(_report("INFO")) == 0
+    assert _exit_code(_report("WARN")) == 1
+    assert _exit_code(_report("CRITICAL")) == 2
+    assert _exit_code(_report("UNKNOWN")) == 2
