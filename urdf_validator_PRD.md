@@ -116,7 +116,7 @@ Data extracted per joint: name, type, parent link, child link, origin (xyz + rpy
 | **Zero mass on non-fixed links**    | **WARNING**  | Causes physics engine instability                              |
 | **Inertia not positive definite**   | **WARNING**  | Inertia matrix must have all positive eigenvalues              |
 | **Inverted joint limits**           | **WARNING**  | lower limit > upper limit - motion planning will fail          |
-| **Missing mesh files**              | **INFO**     | Visual or collision mesh referenced but not found on disk      |
+| **Missing mesh files**              | **INFO**     | Visual or collision mesh referenced but not found on disk — *implementation deferred to v0.5 (Month 5 hardening); tool does not crash on missing meshes in v0.1* |
 | **No effort/velocity limits**       | **INFO**     | Revolute/prismatic joints without declared limits              |
 | **Visual without collision**        | **INFO**     | Link has visual geometry but no collision geometry defined     |
 | **High link count (>50)**           | **INFO**     | Complexity warning - may indicate over-articulated model       |
