@@ -1,15 +1,80 @@
+import sys
+from pathlib import Path
+
 import pytest
+
 from urdf_validator_main.cli import main
 
+SAMPLE_DIR = Path(__file__).parent / "sample_urdf"
 
-def test_main_exits_zero(capsys):
-    with pytest.raises(SystemExit) as exc_info:
+_MINIMAL_PASS_URDF = """\
+<?xml version="1.0"?>
+<robot name="minimal">
+  <link name="base_link"/>
+</robot>
+"""
+
+_ZERO_MASS_WARN_URDF = """\
+<?xml version="1.0"?>
+<robot name="warn_bot">
+  <link name="base_link"/>
+  <link name="arm_link">
+    <inertial>
+      <mass value="0.0"/>
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0"/>
+    </inertial>
+  </link>
+  <joint name="j1" type="revolute">
+    <parent link="base_link"/>
+    <child link="arm_link"/>
+    <limit lower="-1.0" upper="1.0" effort="10.0" velocity="1.0"/>
+  </joint>
+</robot>
+"""
+
+
+def _run(monkeypatch, argv):
+    monkeypatch.setattr(sys, "argv", ["urdf_validate"] + argv)
+    with pytest.raises(SystemExit) as exc:
         main()
-    assert exc_info.value.code == 0
+    return exc.value.code
 
 
-def test_main_prints_not_implemented(capsys):
-    with pytest.raises(SystemExit):
-        main()
-    captured = capsys.readouterr()
-    assert "urdf_validate" in captured.out
+def test_missing_file_exits_2(monkeypatch, capsys):
+    code = _run(monkeypatch, ["/nonexistent/robot.urdf"])
+    assert code == 2
+    assert "[ERROR]" in capsys.readouterr().out
+
+
+def test_minimal_pass_urdf_exits_0(monkeypatch, tmp_path):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    assert _run(monkeypatch, [str(urdf)]) == 0
+
+
+def test_zero_mass_urdf_exits_1(monkeypatch, tmp_path):
+    urdf = tmp_path / "warn_bot.urdf"
+    urdf.write_text(_ZERO_MASS_WARN_URDF)
+    assert _run(monkeypatch, [str(urdf)]) == 1
+
+
+def test_output_contains_schema_header(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    _run(monkeypatch, [str(urdf)])
+    assert "[SCHEMA]" in capsys.readouterr().out
+
+
+def test_output_contains_box_and_filename(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    _run(monkeypatch, [str(urdf)])
+    out = capsys.readouterr().out
+    assert "╔" in out
+    assert "minimal.urdf" in out
+
+
+def test_output_dir_flag_silently_accepted(monkeypatch, tmp_path):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    assert _run(monkeypatch, [str(urdf), "--output-dir", str(tmp_path)]) == 0
