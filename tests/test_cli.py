@@ -113,3 +113,15 @@ def test_exit_code_mapping():
     assert _exit_code(_report("WARN")) == 1
     assert _exit_code(_report("CRITICAL")) == 2
     assert _exit_code(_report("UNKNOWN")) == 2
+
+
+def test_output_physics_section_shows_link_count(monkeypatch, tmp_path, capsys):
+    # _MINIMAL_PASS_URDF has 1 link (base_link, no inertial) → mass=missing
+    # After wiring, [PHYSICS] must show "1 links", not "(no links)"
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    _run(monkeypatch, [str(urdf)])
+    out = capsys.readouterr().out
+    assert "[PHYSICS]" in out
+    assert "(no links)" not in out
+    assert "1 links" in out

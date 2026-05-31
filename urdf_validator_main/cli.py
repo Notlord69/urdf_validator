@@ -4,9 +4,9 @@ import sys
 from datetime import datetime, timezone
 
 from urdf_validator_main.checks.schema import run as run_schema_checks
-from urdf_validator_main.parser.urdf_adapter import ParseError, load_urdf
+from urdf_validator_main.parser.urdf_adapter import ParseError, ParsedRobot, load_urdf
 from urdf_validator_main.report.formatter import format_report
-from urdf_validator_main.report.models import ValidationReport
+from urdf_validator_main.report.models import LinkPhysicsReport, ValidationReport
 
 
 def parse_args(argv=None):
@@ -32,6 +32,24 @@ def _exit_code(report: ValidationReport) -> int:
     return 2  # CRITICAL or unexpected value
 
 
+def _populate_link_physics(parsed: ParsedRobot, report: ValidationReport) -> None:
+    for lnk in parsed.links:
+        inertia_flat = (
+            lnk.inertia_3x3.flatten().tolist()
+            if lnk.inertia_3x3 is not None
+            else None
+        )
+        report.links.append(
+            LinkPhysicsReport(
+                name=lnk.name,
+                mass=lnk.mass,
+                mass_confidence=lnk.mass_confidence,
+                inertia_tensor=inertia_flat,
+                inertia_confidence=lnk.inertia_confidence,
+            )
+        )
+
+
 def main() -> None:
     args = parse_args()
     path = args.urdf_file
@@ -50,5 +68,6 @@ def main() -> None:
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
     run_schema_checks(result, report)
+    _populate_link_physics(result, report)
     print(format_report(report))
     sys.exit(_exit_code(report))
