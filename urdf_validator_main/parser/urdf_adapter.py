@@ -165,6 +165,11 @@ def load_urdf(path: str) -> Union[ParsedRobot, ParseError]:
                     except (TypeError, ValueError):
                         mass = None  # non-numeric mass → treated as unknown
                 inertia = _extract_inertia(lnk)
+                inertia_confidence = (
+                    "exact"
+                    if inertia is not None and np.all(np.isfinite(inertia))
+                    else "missing"
+                )
                 parsed_links.append(
                     ParsedLink(
                         name=lnk.name,
@@ -174,7 +179,7 @@ def load_urdf(path: str) -> Union[ParsedRobot, ParseError]:
                         visual_geometry_type=_geometry_type(lnk.visuals),
                         collision_geometry_type=_geometry_type(lnk.collisions),
                         mass_confidence="exact" if mass is not None else "missing",
-                        inertia_confidence="exact" if inertia is not None else "missing",
+                        inertia_confidence=inertia_confidence,
                     )
                 )
             except Exception:

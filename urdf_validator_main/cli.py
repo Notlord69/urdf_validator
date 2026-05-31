@@ -34,20 +34,23 @@ def _exit_code(report: ValidationReport) -> int:
 
 def _populate_link_physics(parsed: ParsedRobot, report: ValidationReport) -> None:
     for lnk in parsed.links:
-        inertia_flat = (
-            lnk.inertia_3x3.flatten().tolist()
-            if lnk.inertia_3x3 is not None
-            else None
-        )
-        report.links.append(
-            LinkPhysicsReport(
-                name=lnk.name,
-                mass=lnk.mass,
-                mass_confidence=lnk.mass_confidence,
-                inertia_tensor=inertia_flat,
-                inertia_confidence=lnk.inertia_confidence,
+        try:
+            inertia_flat = (
+                lnk.inertia_3x3.flatten().tolist()
+                if lnk.inertia_3x3 is not None
+                else None
             )
-        )
+            report.links.append(
+                LinkPhysicsReport(
+                    name=lnk.name,
+                    mass=lnk.mass,
+                    mass_confidence=lnk.mass_confidence,
+                    inertia_tensor=inertia_flat,
+                    inertia_confidence=lnk.inertia_confidence,
+                )
+            )
+        except Exception:
+            continue
 
 
 def main() -> None:

@@ -118,14 +118,14 @@ def test_exit_code_mapping():
 
 def test_output_physics_section_shows_link_count(monkeypatch, tmp_path, capsys):
     # _MINIMAL_PASS_URDF has 1 link (base_link, no inertial) → mass=missing
-    # After wiring, [PHYSICS] must show "1 links", not "(no links)"
+    # After wiring, [PHYSICS] must show "1 link —", not "(no links)"
     urdf = tmp_path / "minimal.urdf"
     urdf.write_text(_MINIMAL_PASS_URDF)
     _run(monkeypatch, [str(urdf)])
     out = capsys.readouterr().out
     assert "[PHYSICS]" in out
     assert "(no links)" not in out
-    assert "1 links" in out
+    assert "1 link —" in out  # singular, not "1 links"
 
 
 def test_broken_urdf_exits_2_no_crash(monkeypatch, capsys):

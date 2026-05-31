@@ -148,19 +148,58 @@ def test_all_six_reference_urdfs_do_not_crash(urdf_name):
     )
 
 
+MASS_ONLY_URDF = """\
+<?xml version="1.0"?>
+<robot name="mass_only_robot">
+  <link name="base_link"/>
+  <link name="child_link">
+    <inertial>
+      <mass value="1.5"/>
+    </inertial>
+  </link>
+  <joint name="j1" type="revolute">
+    <parent link="base_link"/>
+    <child link="child_link"/>
+    <limit effort="1" velocity="1" lower="-1" upper="1"/>
+  </joint>
+</robot>
+"""
+
+
 def test_link_with_inertial_has_exact_confidence():
     path = os.path.join(SAMPLE_DIR, "TurtleBot3.urdf")
     result = load_urdf(path)
     assert isinstance(result, ParsedRobot)
+    # inertia_confidence is "exact" for links where inertia was parsed and is finite
     links_with_inertia = [lnk for lnk in result.links if lnk.inertia_3x3 is not None]
     assert len(links_with_inertia) > 0
     for lnk in links_with_inertia:
-        assert lnk.mass_confidence == "exact", (
-            f"{lnk.name}: expected mass_confidence='exact', got '{lnk.mass_confidence}'"
-        )
         assert lnk.inertia_confidence == "exact", (
             f"{lnk.name}: expected inertia_confidence='exact', got '{lnk.inertia_confidence}'"
         )
+    # mass_confidence is "exact" only for links where mass was successfully parsed
+    links_with_mass = [lnk for lnk in result.links if lnk.mass is not None]
+    assert len(links_with_mass) > 0
+    for lnk in links_with_mass:
+        assert lnk.mass_confidence == "exact", (
+            f"{lnk.name}: expected mass_confidence='exact', got '{lnk.mass_confidence}'"
+        )
+
+
+def test_link_with_mass_but_no_inertia_has_mixed_confidence():
+    with tempfile.NamedTemporaryFile(suffix=".urdf", mode="w", delete=False) as f:
+        f.write(MASS_ONLY_URDF)
+        path = f.name
+    try:
+        result = load_urdf(path)
+        assert isinstance(result, ParsedRobot)
+        child = next(lnk for lnk in result.links if lnk.name == "child_link")
+        assert child.mass == 1.5
+        assert child.mass_confidence == "exact"
+        assert child.inertia_3x3 is None
+        assert child.inertia_confidence == "missing"
+    finally:
+        os.unlink(path)
 
 
 def test_link_without_inertial_has_missing_confidence():

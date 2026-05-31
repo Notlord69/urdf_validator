@@ -35,16 +35,17 @@ def _physics_section(links: list) -> list:
         return ["[PHYSICS]  (no links)"]
 
     n = len(links)
+    plural = "s" if n != 1 else ""
     mass_exact = sum(1 for lnk in links if lnk.mass_confidence == "exact")
     mass_missing = n - mass_exact
     inertia_exact = sum(1 for lnk in links if lnk.inertia_confidence == "exact")
     inertia_missing = n - inertia_exact
 
     if mass_missing == 0 and inertia_missing == 0:
-        return [f"[PHYSICS]  {_GREEN}✓{_RESET} {n} links — all mass & inertia declared"]
+        return [f"[PHYSICS]  {_GREEN}✓{_RESET} {n} link{plural} — all mass & inertia declared"]
 
     summary = (
-        f"[PHYSICS]  {n} links — "
+        f"[PHYSICS]  {n} link{plural} — "
         f"mass: {mass_exact} exact, {mass_missing} missing · "
         f"inertia: {inertia_exact} exact, {inertia_missing} missing"
     )
