@@ -1,2 +1,57 @@
-def format_report(report) -> str:
-    pass
+import os
+
+from urdf_validator_main.report.models import SchemaReport, ValidationReport
+
+_GREEN = "\033[32m"
+_YELLOW = "\033[33m"
+_RED = "\033[31m"
+_RESET = "\033[0m"
+
+_MIN_WIDTH = 52
+
+
+def format_report(report: ValidationReport) -> str:
+    lines = []
+    lines.extend(_header(report))
+    lines.extend(_schema_section(report.schema))
+    return "\n".join(lines)
+
+
+def _header(report: ValidationReport) -> list:
+    basename = os.path.basename(report.urdf_path) if report.urdf_path else "unknown"
+    title = f"  urdf_validate — {basename}"
+    width = max(_MIN_WIDTH, len(title) + 2)
+    bar = "═" * width
+    return [
+        f"╔{bar}╗",
+        f"║{title.ljust(width)}║",
+        f"╚{bar}╝",
+    ]
+
+
+def _schema_section(schema: SchemaReport) -> list:
+    n = len(schema.critical_issues) + len(schema.warnings) + len(schema.infos)
+    plural = "s" if n != 1 else ""
+
+    if schema.status == "PASS":
+        return [f"[SCHEMA]  {_GREEN}✓ PASS{_RESET}"]
+
+    if schema.status == "INFO":
+        lines = [f"[SCHEMA]  {_GREEN}✓ PASS{_RESET} ({n} info)"]
+        for msg in schema.infos:
+            lines.append(f"  [INFO]     {msg}")
+        return lines
+
+    if schema.status == "WARN":
+        header = f"[SCHEMA]  {_YELLOW}⚠ WARN{_RESET} — {n} issue{plural}"
+    else:  # CRITICAL (or unknown — default to red)
+        header = f"[SCHEMA]  {_RED}✗ CRITICAL{_RESET} — {n} issue{plural}"
+
+    lines = [header]
+    for msg in schema.critical_issues:
+        lines.append(f"  {_RED}[CRITICAL]{_RESET} {msg}")
+    for msg in schema.warnings:
+        lines.append(f"  {_YELLOW}[WARN]{_RESET}     {msg}")
+    for msg in schema.infos:
+        lines.append(f"  [INFO]     {msg}")
+    return lines
