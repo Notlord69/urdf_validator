@@ -19,6 +19,8 @@ class ParsedLink:
     joint_type_incoming: Optional[str] # type of the joint whose child this link is; None = root
     visual_geometry_type: Optional[str]    # "box"|"cylinder"|"sphere"|"mesh"|None
     collision_geometry_type: Optional[str] # same set
+    mass_confidence: str = "missing"      # "exact" | "missing" (v0.1 only)
+    inertia_confidence: str = "missing"   # "exact" | "missing" (v0.1 only)
 
 
 @dataclass
@@ -162,14 +164,17 @@ def load_urdf(path: str) -> Union[ParsedRobot, ParseError]:
                         mass = float(lnk.inertial.mass)
                     except (TypeError, ValueError):
                         mass = None  # non-numeric mass → treated as unknown
+                inertia = _extract_inertia(lnk)
                 parsed_links.append(
                     ParsedLink(
                         name=lnk.name,
                         mass=mass,
-                        inertia_3x3=_extract_inertia(lnk),
+                        inertia_3x3=inertia,
                         joint_type_incoming=child_to_joint_type.get(lnk.name),
                         visual_geometry_type=_geometry_type(lnk.visuals),
                         collision_geometry_type=_geometry_type(lnk.collisions),
+                        mass_confidence="exact" if mass is not None else "missing",
+                        inertia_confidence="exact" if inertia is not None else "missing",
                     )
                 )
             except Exception:

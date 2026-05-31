@@ -146,3 +146,36 @@ def test_all_six_reference_urdfs_do_not_crash(urdf_name):
         f"load_urdf must return ParsedRobot or ParseError, never raise. "
         f"Got {type(result)} for {urdf_name}"
     )
+
+
+def test_link_with_inertial_has_exact_confidence():
+    path = os.path.join(SAMPLE_DIR, "TurtleBot3.urdf")
+    result = load_urdf(path)
+    assert isinstance(result, ParsedRobot)
+    links_with_inertia = [lnk for lnk in result.links if lnk.inertia_3x3 is not None]
+    assert len(links_with_inertia) > 0
+    for lnk in links_with_inertia:
+        assert lnk.mass_confidence == "exact", (
+            f"{lnk.name}: expected mass_confidence='exact', got '{lnk.mass_confidence}'"
+        )
+        assert lnk.inertia_confidence == "exact", (
+            f"{lnk.name}: expected inertia_confidence='exact', got '{lnk.inertia_confidence}'"
+        )
+
+
+def test_link_without_inertial_has_missing_confidence():
+    with tempfile.NamedTemporaryFile(suffix=".urdf", mode="w", delete=False) as f:
+        f.write(MINIMAL_URDF_NO_INERTIAL)
+        path = f.name
+    try:
+        result = load_urdf(path)
+        assert isinstance(result, ParsedRobot)
+        base = next(lnk for lnk in result.links if lnk.name == "base_link")
+        assert base.mass_confidence == "missing", (
+            f"Expected 'missing', got '{base.mass_confidence}'"
+        )
+        assert base.inertia_confidence == "missing", (
+            f"Expected 'missing', got '{base.inertia_confidence}'"
+        )
+    finally:
+        os.unlink(path)
