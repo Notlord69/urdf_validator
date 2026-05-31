@@ -37,7 +37,9 @@ def _schema_section(schema: SchemaReport) -> list:
         return [f"[SCHEMA]  {_GREEN}✓ PASS{_RESET}"]
 
     if schema.status == "INFO":
-        lines = [f"[SCHEMA]  {_GREEN}✓ PASS{_RESET} ({n} info)"]
+        n_info = len(schema.infos)
+        info_plural = "s" if n_info != 1 else ""
+        lines = [f"[SCHEMA]  {_GREEN}✓ PASS{_RESET} ({n_info} info{info_plural})"]
         for msg in schema.infos:
             lines.append(f"  [INFO]     {msg}")
         return lines

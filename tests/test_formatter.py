@@ -67,3 +67,22 @@ def test_info_status_shows_pass():
     result = format_report(_report("INFO", infos=["high link count"]))
     assert "PASS" in result
     assert "high link count" in result
+
+
+def test_unknown_status_renders_as_critical_style():
+    result = format_report(_report("BOGUS", criticals=["msg"]))
+    assert "CRITICAL" in result
+    assert "msg" in result
+
+
+def test_info_multiple_infos_shows_count_and_messages():
+    result = format_report(_report("INFO", infos=["info1", "info2", "info3"]))
+    assert "3 infos" in result
+    assert "info1" in result
+    assert "info2" in result
+    assert "info3" in result
+
+
+def test_empty_urdf_path_renders_unknown():
+    result = format_report(_report("PASS", path=""))
+    assert "unknown" in result
