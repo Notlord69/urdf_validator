@@ -274,3 +274,58 @@ def test_joint_without_axis_defaults_to_x_axis():
         assert j.axis == [1.0, 0.0, 0.0], f"axis: {j.axis}"
     finally:
         os.unlink(path)
+
+
+# ---------------------------------------------------------------------------
+# Link geometry dimension fields
+# ---------------------------------------------------------------------------
+
+def test_cylinder_collision_geometry_dims_extracted():
+    # TurtleBot3 wheel links have cylinder collision geometry (r=0.033, l=0.018)
+    path = os.path.join(SAMPLE_DIR, "TurtleBot3.urdf")
+    result = load_urdf(path)
+    assert isinstance(result, ParsedRobot)
+    cylinder_links = [
+        lnk for lnk in result.links
+        if lnk.collision_geometry_type == "cylinder"
+    ]
+    assert len(cylinder_links) > 0, "TurtleBot3 must have at least one cylinder collision link"
+    for lnk in cylinder_links:
+        dims = lnk.collision_geometry_dims
+        assert dims is not None, f"{lnk.name}: collision_geometry_dims should not be None"
+        assert len(dims) == 2, f"{lnk.name}: cylinder dims must be [radius, length], got {dims}"
+        assert all(v > 0 for v in dims), f"{lnk.name}: dims must be positive, got {dims}"
+
+
+def test_box_collision_geometry_dims_extracted():
+    # TurtleBot3 base_link has box collision geometry (0.14 x 0.14 x 0.143)
+    path = os.path.join(SAMPLE_DIR, "TurtleBot3.urdf")
+    result = load_urdf(path)
+    assert isinstance(result, ParsedRobot)
+    box_links = [
+        lnk for lnk in result.links
+        if lnk.collision_geometry_type == "box"
+    ]
+    assert len(box_links) > 0, "TurtleBot3 must have at least one box collision link"
+    for lnk in box_links:
+        dims = lnk.collision_geometry_dims
+        assert dims is not None, f"{lnk.name}: collision_geometry_dims should not be None"
+        assert len(dims) == 3, f"{lnk.name}: box dims must be [l, w, h], got {dims}"
+        assert all(v > 0 for v in dims), f"{lnk.name}: dims must be positive, got {dims}"
+
+
+def test_mesh_visual_geometry_dims_is_none():
+    # fetch.urdf uses mesh for all visuals — visual_geometry_dims must be None
+    path = os.path.join(SAMPLE_DIR, "fetch.urdf")
+    result = load_urdf(path)
+    assert isinstance(result, ParsedRobot)
+    mesh_links = [
+        lnk for lnk in result.links
+        if lnk.visual_geometry_type == "mesh"
+    ]
+    assert len(mesh_links) > 0, "fetch.urdf must have at least one mesh visual link"
+    for lnk in mesh_links:
+        assert lnk.visual_geometry_dims is None, (
+            f"{lnk.name}: visual_geometry_dims must be None for mesh geometry, "
+            f"got {lnk.visual_geometry_dims}"
+        )

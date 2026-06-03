@@ -21,6 +21,8 @@ class ParsedLink:
     collision_geometry_type: Optional[str] # same set
     mass_confidence: str = "missing"      # "exact" | "missing" (v0.1 only)
     inertia_confidence: str = "missing"   # "exact" | "missing" (v0.1 only)
+    visual_geometry_dims: Optional[List[float]] = None    # box:[l,w,h] cyl:[r,h] sphere:[r] mesh:None
+    collision_geometry_dims: Optional[List[float]] = None # same convention
 
 
 @dataclass
@@ -102,6 +104,31 @@ def _geometry_type(geoms) -> Optional[str]:
             t = _GEOM_CLASS_TO_TYPE.get(type(g).__name__)
             if t is not None:
                 return t
+        except Exception:
+            continue
+    return None
+
+
+def _geometry_dims(geoms) -> Optional[List[float]]:
+    """Return dimension list for the first primitive geometry in a visuals/collisions list.
+
+    Convention: box → [l, w, h], cylinder → [radius, length], sphere → [radius].
+    Returns None for mesh geometry or when geoms is empty.
+    """
+    if not geoms:
+        return None
+    for geom in geoms:
+        try:
+            g = geom.geometry
+            if g is None:
+                continue
+            t = type(g).__name__
+            if t == "Box":
+                return list(g.size)
+            if t == "Cylinder":
+                return [g.radius, g.length]
+            if t == "Sphere":
+                return [g.radius]
         except Exception:
             continue
     return None
@@ -198,6 +225,8 @@ def load_urdf(path: str) -> Union[ParsedRobot, ParseError]:
                         collision_geometry_type=_geometry_type(lnk.collisions),
                         mass_confidence="exact" if mass is not None else "missing",
                         inertia_confidence=inertia_confidence,
+                        visual_geometry_dims=_geometry_dims(lnk.visuals),
+                        collision_geometry_dims=_geometry_dims(lnk.collisions),
                     )
                 )
             except Exception:
