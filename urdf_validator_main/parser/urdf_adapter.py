@@ -21,7 +21,7 @@ class ParsedLink:
     collision_geometry_type: Optional[str] # same set
     mass_confidence: str = "missing"      # "exact" | "missing" (v0.1 only)
     inertia_confidence: str = "missing"   # "exact" | "missing" (v0.1 only)
-    visual_geometry_dims: Optional[List[float]] = None    # box:[l,w,h] cyl:[r,h] sphere:[r] mesh:None
+    visual_geometry_dims: Optional[List[float]] = None    # box:[l,w,h] cyl:[r,length] sphere:[r] mesh:None
     collision_geometry_dims: Optional[List[float]] = None # same convention
 
 
@@ -129,6 +129,8 @@ def _geometry_dims(geoms) -> Optional[List[float]]:
                 return [g.radius, g.length]
             if t == "Sphere":
                 return [g.radius]
+            if t == "Mesh":
+                return None
         except Exception:
             continue
     return None
