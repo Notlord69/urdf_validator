@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
 import numpy as np
@@ -33,6 +33,9 @@ class ParsedJoint:
     limit_upper: Optional[float]
     limit_effort: Optional[float]
     limit_velocity: Optional[float]
+    origin_xyz: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    origin_rpy: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    axis: List[float]      = field(default_factory=lambda: [1.0, 0.0, 0.0])
 
 
 @dataclass
@@ -139,6 +142,18 @@ def load_urdf(path: str) -> Union[ParsedRobot, ParseError]:
             try:
                 child_to_joint_type[j.child] = j.type
                 lims = j.limit
+                origin = j.origin
+                origin_xyz = (
+                    list(origin.xyz)
+                    if origin is not None and origin.xyz is not None
+                    else [0.0, 0.0, 0.0]
+                )
+                origin_rpy = (
+                    list(origin.rpy)
+                    if origin is not None and origin.rpy is not None
+                    else [0.0, 0.0, 0.0]
+                )
+                axis = list(j.axis) if j.axis is not None else [1.0, 0.0, 0.0]
                 parsed_joints.append(
                     ParsedJoint(
                         name=j.name,
@@ -149,6 +164,9 @@ def load_urdf(path: str) -> Union[ParsedRobot, ParseError]:
                         limit_upper=lims.upper if lims is not None else None,
                         limit_effort=lims.effort if lims is not None else None,
                         limit_velocity=lims.velocity if lims is not None else None,
+                        origin_xyz=origin_xyz,
+                        origin_rpy=origin_rpy,
+                        axis=axis,
                     )
                 )
             except Exception:

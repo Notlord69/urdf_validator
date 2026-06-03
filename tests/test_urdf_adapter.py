@@ -218,3 +218,59 @@ def test_link_without_inertial_has_missing_confidence():
         )
     finally:
         os.unlink(path)
+
+
+# ---------------------------------------------------------------------------
+# Joint origin and axis fields
+# ---------------------------------------------------------------------------
+
+def test_shoulder_pan_joint_has_correct_origin():
+    path = os.path.join(SAMPLE_DIR, "fetch.urdf")
+    result = load_urdf(path)
+    assert isinstance(result, ParsedRobot)
+    j = next(j for j in result.joints if j.name == "shoulder_pan_joint")
+    assert len(j.origin_xyz) == 3
+    assert abs(j.origin_xyz[0] - 0.119525) < 1e-6, f"x: {j.origin_xyz[0]}"
+    assert abs(j.origin_xyz[1] - 0.0)      < 1e-6, f"y: {j.origin_xyz[1]}"
+    assert abs(j.origin_xyz[2] - 0.34858)  < 1e-6, f"z: {j.origin_xyz[2]}"
+    assert j.origin_rpy == [0.0, 0.0, 0.0], f"rpy: {j.origin_rpy}"
+
+
+def test_shoulder_pan_joint_has_correct_axis():
+    path = os.path.join(SAMPLE_DIR, "fetch.urdf")
+    result = load_urdf(path)
+    assert isinstance(result, ParsedRobot)
+    j = next(j for j in result.joints if j.name == "shoulder_pan_joint")
+    assert len(j.axis) == 3
+    assert abs(j.axis[0] - 0.0) < 1e-6, f"axis x: {j.axis[0]}"
+    assert abs(j.axis[1] - 0.0) < 1e-6, f"axis y: {j.axis[1]}"
+    assert abs(j.axis[2] - 1.0) < 1e-6, f"axis z: {j.axis[2]}"
+
+
+def test_joint_without_origin_defaults_to_zeros():
+    # MINIMAL_URDF_NO_INERTIAL has a joint with no <origin> element
+    with tempfile.NamedTemporaryFile(suffix=".urdf", mode="w", delete=False) as f:
+        f.write(MINIMAL_URDF_NO_INERTIAL)
+        path = f.name
+    try:
+        result = load_urdf(path)
+        assert isinstance(result, ParsedRobot)
+        j = next(j for j in result.joints if j.name == "j1")
+        assert j.origin_xyz == [0.0, 0.0, 0.0], f"origin_xyz: {j.origin_xyz}"
+        assert j.origin_rpy == [0.0, 0.0, 0.0], f"origin_rpy: {j.origin_rpy}"
+    finally:
+        os.unlink(path)
+
+
+def test_joint_without_axis_defaults_to_x_axis():
+    # MINIMAL_URDF_NO_INERTIAL has a joint with no <axis> element
+    with tempfile.NamedTemporaryFile(suffix=".urdf", mode="w", delete=False) as f:
+        f.write(MINIMAL_URDF_NO_INERTIAL)
+        path = f.name
+    try:
+        result = load_urdf(path)
+        assert isinstance(result, ParsedRobot)
+        j = next(j for j in result.joints if j.name == "j1")
+        assert j.axis == [1.0, 0.0, 0.0], f"axis: {j.axis}"
+    finally:
+        os.unlink(path)
