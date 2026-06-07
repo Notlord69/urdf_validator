@@ -4,6 +4,7 @@ import sys
 from datetime import datetime, timezone
 
 from urdf_validator_main.checks.schema import run as run_schema_checks
+from urdf_validator_main.checks.statics import run as run_statics
 from urdf_validator_main.parser.urdf_adapter import ParseError, ParsedRobot, load_urdf
 from urdf_validator_main.report.formatter import format_report
 from urdf_validator_main.report.models import LinkPhysicsReport, ValidationReport
@@ -19,6 +20,13 @@ def parse_args(argv=None):
         "--output-dir",
         metavar="DIR",
         help="Directory for JSON report output (not yet implemented)",
+    )
+    parser.add_argument(
+        "--pose",
+        choices=["zero", "home", "limits", "custom"],
+        default="zero",
+        metavar="POSE",
+        help="Joint configuration for statics (zero|home|limits|custom). Only 'zero' is implemented in v0.2.",
     )
     return parser.parse_args(argv)
 
@@ -55,6 +63,8 @@ def _populate_link_physics(parsed: ParsedRobot, report: ValidationReport) -> Non
 
 def main() -> None:
     args = parse_args()
+    if args.pose != "zero":
+        print(f"[WARN] --pose '{args.pose}' not yet supported in v0.2; using zero pose", file=sys.stderr)
     path = args.urdf_file
 
     result = load_urdf(path)
@@ -69,5 +79,6 @@ def main() -> None:
     )
     run_schema_checks(result, report)
     _populate_link_physics(result, report)
+    run_statics(result, report)
     print(format_report(report))
     sys.exit(_exit_code(report))

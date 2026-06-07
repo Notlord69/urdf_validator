@@ -144,3 +144,59 @@ def test_nan_inertia_no_crash(monkeypatch, capsys):
     # NaN inertia triggers WARN (exit 1) or ParseError (exit 2) — both acceptable
     code = _run(monkeypatch, [str(BAD_URDF_DIR / "nan_inertia.urdf")])
     assert code in (1, 2)
+
+
+# ---------------------------------------------------------------------------
+# --pose flag
+# ---------------------------------------------------------------------------
+
+def test_pose_default_is_zero():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf"])
+    assert args.pose == "zero"
+
+
+def test_pose_zero_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--pose", "zero"])
+    assert args.pose == "zero"
+
+
+def test_pose_home_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--pose", "home"])
+    assert args.pose == "home"
+
+
+def test_pose_limits_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--pose", "limits"])
+    assert args.pose == "limits"
+
+
+def test_pose_custom_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--pose", "custom"])
+    assert args.pose == "custom"
+
+
+def test_pose_invalid_raises_system_exit():
+    from urdf_validator_main.cli import parse_args
+    with pytest.raises(SystemExit):
+        parse_args(["robot.urdf", "--pose", "invalid"])
+
+
+def test_pose_non_zero_prints_stderr_warning(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    _run(monkeypatch, [str(urdf), "--pose", "home"])
+    err = capsys.readouterr().err
+    assert "--pose 'home' not yet supported" in err
+
+
+def test_pose_zero_no_stderr_warning(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    _run(monkeypatch, [str(urdf), "--pose", "zero"])
+    err = capsys.readouterr().err
+    assert "not yet supported" not in err
