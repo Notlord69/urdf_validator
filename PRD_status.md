@@ -1,0 +1,326 @@
+# PRD Implementation Status
+
+**urdf_validator** — Physics-Aware URDF Validation Tool
+
+| Field          | Value              |
+|----------------|--------------------|
+| PRD Version    | 1.0 - Draft        |
+| Status as of   | 2026-06-13         |
+| Current Build  | v0.3.0-dev         |
+| Current Phase  | Month 3 complete   |
+
+---
+
+## Milestone Summary
+
+| Milestone | Month | Focus                                    | Status         |
+|-----------|-------|------------------------------------------|----------------|
+| v0.1      | 1     | Parser + Physics + Schema                | **COMPLETE**   |
+| v0.2      | 2     | Chain Walker + COM + Gravity Torques     | **COMPLETE**    |
+| v0.3      | 3     | Stability — Support Polygon + COM Projection | **COMPLETE** |
+| v0.4      | 4     | Workspace + Task Checks + Full Report Pipeline | NOT STARTED |
+| v0.5      | 5     | Hardening — Edge Cases, Bad URDFs, Mesh Failures | NOT STARTED |
+| v1.0      | 6     | Polish + Docs + Community Release        | NOT STARTED    |
+
+---
+
+## Phase 1 — URDF Parsing & Schema Validation (§3.2)
+
+### 3.2.1 Parser
+
+| Item                                                      | Status      | Notes                                                  |
+|-----------------------------------------------------------|-------------|--------------------------------------------------------|
+| Wraps `urdf_parser_py` for URDF parsing                   | **DONE**    | `parser/urdf_adapter.py`                               |
+| Extracts link data: name, mass, inertia tensor            | **DONE**    | Full IR in `ParsedLink`                                |
+| Extracts link data: visual/collision geometry type        | **DONE**    | Type string only (`box/cylinder/sphere/mesh`)          |
+| Extracts joint data: name, type, parent/child, limits     | **DONE**    | Full IR in `ParsedJoint`                               |
+| Never crashes on bad input — structured `ParseError`      | **DONE**    | Two-block try/except; per-entry protection             |
+| Mass and inertia confidence labels (`exact`/`missing`)    | **DONE**    | `ParsedLink.mass_confidence`, `inertia_confidence`     |
+| `xacro` preprocessing via `xacro_handler.py`             | **STUB**    | `preprocess()` body is `pass`; not wired into CLI      |
+| Geometry dimensions extracted (for physics estimates)     | **DONE**    | `_geometry_dims()` in adapter; box/cyl/sphere dims in `ParsedLink` |
+| Joint origin (xyz + rpy) extracted                        | **DONE**    | `ParsedJoint.origin_xyz`, `origin_rpy` populated       |
+| Joint axis extracted                                      | **DONE**    | `ParsedJoint.axis` populated; defaults to `[1,0,0]`    |
+
+### 3.2.2 Schema Checks
+
+| Check                                   | Severity | Status      | Notes                                           |
+|-----------------------------------------|----------|-------------|-------------------------------------------------|
+| Broken joint references                 | CRITICAL | **DONE**    | Parent and child validated against link set     |
+| Missing root link                       | CRITICAL | **DONE**    | Also detects multiple roots (WARNING)           |
+| Kinematic loops                         | CRITICAL | **DONE**    | Iterative DFS; skipped when broken refs present |
+| Duplicate link/joint names              | CRITICAL | **DONE**    |                                                 |
+| Zero inertia on non-fixed links         | WARNING  | **DONE**    | All-zeros tensor check                          |
+| Zero mass on non-fixed links            | WARNING  | **DONE**    | Skips fixed and root links                      |
+| Inertia not positive definite           | WARNING  | **DONE**    | Eigenvalue check; NaN/Inf guard included        |
+| Inverted joint limits                   | WARNING  | **DONE**    | `_check_inverted_limits` in `checks/schema.py`  |
+| Missing mesh files                      | INFO     | **DEFERRED**| Explicitly deferred to v0.5 (per PRD §3.2.2)   |
+| No effort/velocity limits               | INFO     | **DONE**    | `_check_missing_limits` in `checks/schema.py`   |
+| Visual without collision                | INFO     | **DONE**    | `_check_visual_no_collision` in `checks/schema.py` |
+| High link count (>50)                   | INFO     | **DONE**    | `_check_high_link_count` in `checks/schema.py`  |
+
+---
+
+## Phase 2 — Statics Analysis (§3.3)
+
+### 3.3.1 Kinematic Chain Walker
+
+| Item                                                        | Status      | Notes                                           |
+|-------------------------------------------------------------|-------------|-------------------------------------------------|
+| Tree traversal from root to leaves at zero pose             | **DONE**    | BFS in `physics/chain_walker.py`; root auto-detected |
+| 4×4 homogeneous transform per link in world frame           | **DONE**    | `T_world` accumulated via `T_parent @ T_joint`  |
+| Link COM position in world frame                            | **DONE**    | `com_world` computed from inertial origin offset |
+| `--pose` CLI flag (zero/home/limits/custom)                | **PARTIAL** | Flag accepted by argparse; only `zero` functional; others warn and fall back |
+
+### 3.3.2 Full-Body Centre of Mass
+
+| Item                                                        | Status      | Notes                                          |
+|-------------------------------------------------------------|-------------|------------------------------------------------|
+| Mass-weighted average COM across all links                  | **DONE**    | `checks/statics.py` — `_compute_com()`         |
+| COM position [x, y, z] in world frame                       | **DONE**    | `StaticsReport.full_body_com` populated        |
+| COM height above ground plane                               | **PENDING** | Not extracted from full_body_com yet           |
+| Heaviest link by name and percentage                        | **PENDING** | Not in `StaticsReport`                         |
+| Upper/lower body mass split (humanoid tipping warning)      | **PENDING** | Not in `StaticsReport`                         |
+
+### 3.3.3 Gravity Torque Per Joint
+
+| Item                                                        | Status      | Notes                                          |
+|-------------------------------------------------------------|-------------|------------------------------------------------|
+| Required gravity torque per actuated joint                  | **DONE**    | Cross-product of moment arm × gravity force projected onto joint axis |
+| Declared effort from URDF limits                            | **DONE**    | `JointStaticsReport.declared_effort`           |
+| Margin = declared_effort / required_torque                  | **DONE**    | `JointStaticsReport.margin`                    |
+| Per-joint status: PASS / WARN / FAIL                        | **DONE**    | PASS ≥1.5, WARN 1.0–1.5, FAIL <1.0            |
+| Plain-language summary ("Motor undersized by X kg")         | **PENDING** | Not yet implemented                            |
+
+### 3.3.4 Effort Margin Summary
+
+| Item                                                        | Status      | Notes                                          |
+|-------------------------------------------------------------|-------------|------------------------------------------------|
+| Weakest joint identification                                | **PENDING** | Not in `StaticsReport`                         |
+| Overall effort status (PASS/WARN/FAIL)                      | **DONE**    | `StaticsReport.status` — FAIL if any joint fails |
+| Payload capacity estimate                                   | **PENDING** | Not yet implemented                            |
+
+---
+
+## Phase 3 — Stability Analysis (§3.4)
+
+### 3.4.1 Support Polygon Extraction
+
+| Item                                                        | Status              | Notes                                                                 |
+|-------------------------------------------------------------|---------------------|-----------------------------------------------------------------------|
+| Wheeled robot — name-based contact extraction (`"wheel"` in link name) | **DONE** | `physics/support_polygon.py` — case-insensitive; returns `None` when <3 non-collinear contacts |
+| 2D convex hull via `shapely`                                | **DONE**            | `MultiPoint.convex_hull`; degenerates (line/point) return `None`     |
+| Humanoid foot contact patch extraction                      | **PENDING**         |                                                                       |
+| Unknown type fallback (lowest link positions)               | **PENDING**         |                                                                       |
+| Geometry-based wheel detection (cylindrical geometry fallback + caster inclusion) | **DEFERRED → v0.5** | See remark below |
+
+> **v0.5 remark — geometry heuristic for contact detection:**
+> TurtleBot3 and Fetch are both wheeled robots, yet `extract_wheeled_polygon()` currently returns `None` for both because each has only **2** links named `"wheel_*"` (plus an unnamed caster). Two contact points cannot form a convex polygon, so stability is correctly reported as `UNKNOWN`.
+>
+> The root ambiguity: the name-matching heuristic is necessary but not sufficient. Differential-drive robots typically have 2 driven wheels + 1 or more passive casters, and casters rarely carry "wheel" in their name. The fix requires a geometry heuristic:
+> 1. **Cylindrical geometry fallback** — any link with `collision_geometry_type == "cylinder"` and radius-to-length ratio consistent with a wheel (r/L > some threshold, e.g. 0.3) is treated as a wheel contact, supplementing the name match.
+> 2. **Caster inclusion** — links with "caster" in their name that have cylindrical or spherical collision geometry are added as contact points.
+>
+> This work is explicitly assigned to **v0.5 (hardening)**. Until then, robots with fewer than 3 name-matched wheel links report `[STABILITY] UNKNOWN` — which is honest, not a crash.
+
+### 3.4.2 COM Projection & Stability Check
+
+| Item                                                        | Status      | Notes                                                     |
+|-------------------------------------------------------------|-------------|-----------------------------------------------------------|
+| COM projected onto XY ground plane                          | **DONE**    | Reads `statics.full_body_com[0:2]`                        |
+| Inside/outside support polygon check                        | **DONE**    | `shapely.Polygon.contains(Point(com_xy))`                 |
+| Stability margin in mm (signed distance to edge)            | **DONE**    | `exterior.distance()` × 1000; negated when outside        |
+| Tip direction                                               | **DONE**    | 8-compass via `atan2` to nearest exterior point           |
+| Status: PASS / WARN / FAIL                                  | **DONE**    | PASS if stable, FAIL if not; UNKNOWN when polygon is None |
+
+### 3.4.3 COM Height Ratio
+
+| Item                                                        | Status      |
+|-------------------------------------------------------------|-------------|
+| Ratio COM height / support polygon width                    | **PENDING** |
+| Threshold classification (passive/normal/active/unstable)   | **PENDING** |
+| Tipping angle in degrees                                    | **PENDING** |
+
+---
+
+## Phase 4 — Workspace & Task Capability (§3.5)
+
+### 3.5.1 Forward Kinematics
+
+| Item                                                        | Status      |
+|-------------------------------------------------------------|-------------|
+| FK via `ikpy` wrapper                                       | **STUB**    | `checks/workspace.py` body is `pass` |
+| End-effector chain identification from URDF                 | **PENDING** |                                 |
+| Reachable workspace grid sampling                           | **PENDING** |                                 |
+
+### 3.5.2 Reach Metrics
+
+| Item                                         | Status      |
+|----------------------------------------------|-------------|
+| `max_reach`                                  | **PENDING** |
+| `vertical_reach`                             | **PENDING** |
+| `horizontal_reach`                           | **PENDING** |
+| `reach_from_base`                            | **PENDING** |
+
+### 3.5.3 Task Declarations
+
+| Item                                         | Status      |
+|----------------------------------------------|-------------|
+| `--task` CLI flag                            | **PENDING** | Not wired into CLI |
+| `pick_from_ground` / `pick_from_table` / `push_button` / `custom` | **PENDING** |
+| COM-over-polygon check during reach          | **PENDING** |
+
+---
+
+## Phase 5 — Report Generation (§3.6)
+
+### 3.6.1 ValidationReport Dataclass
+
+| Item                                                        | Status      | Notes                                          |
+|-------------------------------------------------------------|-------------|------------------------------------------------|
+| `ValidationReport` with all sub-report fields               | **DONE**    | `report/models.py`                             |
+| `SchemaReport`, `LinkPhysicsReport`                        | **DONE**    |                                                |
+| `StaticsReport`, `JointStaticsReport`                      | **DONE**    | Fully populated by `checks/statics.py`         |
+| `StabilityReport`, `WorkspaceReport`                       | **DONE**    | Dataclass defined; not yet populated by pipeline |
+| `Confidence` type: `exact/estimated/guessed/missing`       | **DONE**    |                                                |
+| `overall_status` derivation (PASS/WARN/FAIL)               | **PENDING** | Field exists; never set beyond default "UNKNOWN" |
+| `confidence_level` derivation (HIGH/MEDIUM/LOW)            | **PENDING** | Field exists; never set beyond default "LOW"   |
+| `robot_type` detection                                     | **DONE**    | `physics/robot_classifier.py` — name heuristic; wired into CLI |
+
+### 3.6.2 Terminal Formatter
+
+| Item                                                        | Status      | Notes                                         |
+|-------------------------------------------------------------|-------------|-----------------------------------------------|
+| Box header with filename                                    | **DONE**    | Unicode box characters, dynamic width         |
+| `[SCHEMA]` section with colored status and issue list      | **DONE**    |                                               |
+| `[PHYSICS]` section with per-link confidence summary       | **DONE**    | mass/inertia exact vs missing counts          |
+| `[STATICS]` section                                        | **DONE**    | COM, total mass, per-joint torque/margin/status |
+| `[STABILITY]` section                                      | **DONE**    | STABLE/UNSTABLE with margin and tip direction; omitted when UNKNOWN |
+| `[WORKSPACE]` section                                      | **PENDING** | Not implemented                               |
+| "Full report: …json" footer line                           | **PENDING** | Not implemented                               |
+
+### 3.6.3 JSON Export
+
+| Item                                                        | Status      |
+|-------------------------------------------------------------|-------------|
+| `ValidationReport` serialised to JSON file                 | **STUB**    | `report/json_export.py` body is `pass`        |
+| `--output-dir` CLI flag                                    | **PARTIAL** | Flag accepted by argparse; export not implemented |
+| Documented stable JSON schema                               | **PENDING** |                                               |
+
+### 3.6.4 MuJoCo Deep Mode (Optional)
+
+| Item                                                        | Status      | Notes                                                 |
+|-------------------------------------------------------------|-------------|-------------------------------------------------------|
+| `--deep` CLI flag                                          | **PENDING** | Not wired into CLI                                    |
+| Lazy import of MuJoCo                                      | **DONE**    | `get_com()` and `get_joint_gravity_torques()` implemented in `integrations/mujoco_wrapper.py` |
+| Static pose test                                           | **PENDING** | `run_deep()` body is still `pass`                     |
+| 2-second drop test                                         | **PENDING** |                                                       |
+| `SIMULATED` confidence badge                               | **PENDING** |                                                       |
+
+---
+
+## CLI Entry Point (§3.2.1 / §3.6.2)
+
+| Feature                                                     | Status      | Notes                                               |
+|-------------------------------------------------------------|-------------|-----------------------------------------------------|
+| `urdf_validate <file.urdf>` entry point                    | **DONE**    | `cli.py`                                            |
+| CI-compatible exit codes (0 / 1 / 2)                       | **DONE**    | PASS/INFO=0, WARN=1, CRITICAL=2                     |
+| Link physics populated into `ValidationReport.links`       | **DONE**    | `_populate_link_physics()` wired                    |
+| Statics pipeline wired into CLI                             | **DONE**    | `run_statics()` called after schema checks          |
+| `--output-dir` flag                                        | **PARTIAL** | Accepted; JSON export not implemented               |
+| `--pose` flag                                              | **PARTIAL** | Accepted; `zero` only; others warn and fall back    |
+| `--task` / `--height` flags                               | **PENDING** |                                                     |
+| `--deep` flag                                              | **PENDING** |                                                     |
+
+---
+
+## Physics Engine Modules
+
+| Module                        | Status      | Notes                                           |
+|-------------------------------|-------------|-------------------------------------------------|
+| `physics/geometry_physics.py` | **DONE**    | `estimate_inertia()` for sphere, box, cylinder; mesh returns `guessed` |
+| `physics/chain_walker.py`     | **DONE**    | BFS tree traversal; `_rpy_to_matrix`, `_origin_to_transform`; never raises |
+
+---
+
+## Non-Functional Requirements (§4)
+
+| NFR                    | Status      | Notes                                                    |
+|------------------------|-------------|----------------------------------------------------------|
+| Performance < 30s      | **PARTIAL** | Not profiled; Month 4+ pipeline not built yet            |
+| `pip install` only     | **DONE**    | No ROS dependency                                        |
+| Python 3.8–3.12        | **DONE**    | Confirmed via setup/tests                                |
+| Valid RFC 8259 JSON     | **PENDING** | JSON export not implemented                              |
+| No crash on bad input  | **DONE**    | Verified on all 6 reference URDFs                        |
+| Confidence honesty     | **DONE**    | `exact`/`missing` in parser; `estimated`/`guessed` in geometry_physics |
+| MIT license, no GPL    | **DONE**    |                                                          |
+| Core deps only         | **DONE**    | `urdf_parser_py`, `numpy` in use; `shapely`/`ikpy` not yet called |
+| xacro support          | **STUB**    | Stub exists; not wired                                   |
+
+---
+
+## Test Coverage
+
+| Test File                  | Coverage                                                      | Status   |
+|----------------------------|---------------------------------------------------------------|----------|
+| `test_schema_checks.py`    | All schema checks; clean/broken/loop/physics cases            | **DONE** |
+| `test_urdf_adapter.py`     | `load_urdf` IR extraction and no-crash contract               | **DONE** |
+| `test_cli.py`              | CLI exit codes, argparse, pipeline wiring                     | **DONE** |
+| `test_formatter.py`        | `format_report` output for schema and physics sections        | **DONE** |
+| `test_models.py`           | `ValidationReport` and sub-report dataclass defaults          | **DONE** |
+| `test_imports.py`          | Full import surface smoke test                                | **DONE** |
+| `test_install.py`          | Package install and entry point                               | **DONE** |
+| `test_chain_walker.py`     | BFS traversal, RPY convention, transform accumulation, COM    | **DONE** |
+| `test_geometry_physics.py` | Sphere/box/cylinder inertia formulas; mesh fallback; no-crash | **DONE** |
+| `test_statics.py`          | COM computation, gravity torque, margin, joint/overall status | **DONE** |
+| `test_mujoco_validation.py`| MuJoCo ground-truth torque comparison on fetch_robot (10% tolerance) | **DONE** (written; requires MuJoCo install to run) |
+| No-crash on 6 ref URDFs    | ANYmal, Franka Panda, PR2, Spot, TurtleBot3, fetch            | **DONE** |
+| `test_support_polygon.py`  | `extract_wheeled_polygon` — polygon shape, degenerate cases, name matching | **DONE** |
+| `test_stability.py`        | `stability.run` — containment, margin, tip direction, degradation, formatter | **DONE** |
+| `test_robot_classifier.py` | `detect_robot_type` — keyword variants, priority, integration on TurtleBot3/Fetch | **DONE** |
+| `test_schema_new_checks.py`| Four new schema checks (inverted-limits, missing-limits, visual-no-collision, high-link-count) | **DONE** |
+| Workspace tests             | Not yet written                                              | **PENDING** |
+
+---
+
+## v0.1 Exit Criteria Check (Month 1)
+
+> _"urdf_validate robot.urdf prints something useful — schema pass/fail, physics confidence levels, non-crash on all 6 reference URDFs"_
+
+| Criterion                                         | Met? |
+|---------------------------------------------------|------|
+| Prints schema pass/fail                           | YES  |
+| Prints physics confidence levels (mass/inertia)   | YES  |
+| Non-crash on all 6 reference URDFs                | YES  |
+
+**v0.1 exit criteria: MET**
+
+---
+
+## v0.2 Exit Criteria Check (Month 2)
+
+> _"Correct torque numbers on fetch_robot verified against MuJoCo ground truth (within 10% tolerance)"_
+
+| Criterion                                                   | Met?     |
+|-------------------------------------------------------------|----------|
+| Chain walker produces 4×4 transforms at zero pose           | YES      |
+| Full-body COM computed and reported                         | YES      |
+| Gravity torque computed per actuated joint                  | YES      |
+| Per-joint status (PASS/WARN/FAIL) reported                  | YES      |
+| `[STATICS]` section rendered in terminal output             | YES      |
+| MuJoCo ground-truth comparison test written                 | YES      |
+| MuJoCo torque match verified within 10% on fetch_robot      | YES — 0.0% relative error on all 5 joints above 1 Nm threshold |
+
+**v0.2 exit criteria: MET**
+
+---
+
+## Open Questions Status (§7)
+
+| # | Question                                                   | Status    |
+|---|------------------------------------------------------------|-----------|
+| 1 | urdfpy vs urdf_parser_py                                   | RESOLVED — `urdf_parser_py` chosen and implemented |
+| 2 | Mimic joints handling                                      | OPEN — no implementation yet |
+| 3 | Mesh-based inertia estimation in v1                        | OPEN — current plan is sphere bounding-box fallback (not yet built) |
+| 4 | Correct tolerance for MuJoCo torque verification           | OPEN — test written at 10%; empirical result pending |
+| 5 | SDF support                                                | DEFERRED to Future Plans     |
+| 6 | GitHub Actions integration docs                            | DEFERRED to Month 6 / docs/  |

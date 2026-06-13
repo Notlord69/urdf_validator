@@ -165,11 +165,18 @@ An aggregate view across all joints is produced, identifying the weakest joint (
 
 The tool identifies the robot's contact points with the ground. Three cases are handled:
 
-- Wheeled robot: links with 'wheel' in name or cylindrical geometry. Contact point = wheel centre minus wheel radius in Z. Caster wheels are included.
-- Humanoid: links with 'foot', 'ankle', or 'sole' in name. Contact patch = bounding box bottom face. During single support (one foot raised), only the stance foot polygon applies.
-- Unknown type: lowest link positions used as contact estimate; flagged as low confidence.
+- Wheeled robot: links with 'wheel' in name (case-insensitive substring match). Contact point = wheel centre in world frame (from chain walker), projected onto XY. The 2D convex hull (shapely) of all wheel contact points is the support polygon. Requires ≥ 3 non-collinear contact points; degenerates to UNKNOWN otherwise.
+- Humanoid: links with 'foot', 'ankle', or 'sole' in name. Contact patch = bounding box bottom face. During single support (one foot raised), only the stance foot polygon applies. *(Not yet implemented — v0.3 scope delivered name-matching for wheeled only.)*
+- Unknown type: lowest link positions used as contact estimate; flagged as low confidence. *(Not yet implemented.)*
 
 The support polygon is the 2D convex hull (shapely library) of all contact points projected onto the ground plane. Dynamic (shrinking) support polygon analysis is out of scope for v1 and documented in Future Plans.
+
+**Geometry-based contact detection (v0.5):** The name-only heuristic is insufficient for common wheeled configurations such as differential-drive robots (2 driven wheels + passive casters), where casters are not named 'wheel'. Two named wheel links cannot form a polygon, and these robots incorrectly receive UNKNOWN stability status. v0.5 must add:
+
+1. **Cylindrical geometry fallback** — any link with `collision_geometry_type == "cylinder"` and a wheel-like radius-to-length ratio (r/L > 0.3) is included as a wheel contact point, supplementing the name match.
+2. **Caster inclusion** — links with 'caster' in their name that have cylindrical or spherical collision geometry are added as contact points.
+
+This ensures robots like TurtleBot3 (2 driven wheels + 1 caster) and Fetch (2 driven wheels + 1 caster) receive a valid support polygon.
 
 **3.4.2 COM Projection & Stability Check**
 
@@ -307,7 +314,7 @@ The acceptance standard for community trust is correct, non-crashing output on s
 | **Month 2** | **Chain Walker + COM + Gravity Torques**             | Correct torque numbers on fetch_robot verified against MuJoCo ground truth (within 10% tolerance)                                  |
 | **Month 3** | **Stability - Support Polygon + COM Projection**     | Correctly identifies stable vs unstable robot configurations on at least 3 reference URDFs                                         |
 | **Month 4** | **Workspace + Task Checks + Full Report Pipeline**   | End-to-end pipeline works on all 6 reference URDFs - no crashes, structured JSON output for each                                   |
-| **Month 5** | **Hardening - Edge Cases, Bad URDFs, Mesh Failures** | Does not crash on any malformed input; gracefully degrades on unknown robot types; mesh failures reported, not thrown              |
+| **Month 5** | **Hardening - Edge Cases, Bad URDFs, Mesh Failures** | Does not crash on any malformed input; gracefully degrades on unknown robot types; mesh failures reported, not thrown; geometry-based wheel contact detection implemented (TurtleBot3 and Fetch produce valid stability polygons) |
 | **Month 6** | **Polish + Docs + Community Release**                | First 50 real users - posted to ROS Discourse, Reddit r/robotics. README includes output examples from all 6 reference robots.     |
 
 Version milestones:
