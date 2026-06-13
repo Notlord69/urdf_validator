@@ -45,6 +45,7 @@ class StabilityReport:
     com_height_ratio: Optional[float] = None
     com_height_ratio_confidence: Confidence = "missing"
     status: str = "UNKNOWN"
+    reason: Optional[str] = None
 
 
 @dataclass

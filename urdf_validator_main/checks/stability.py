@@ -6,7 +6,7 @@ from typing import Optional
 from urdf_validator_main.parser.urdf_adapter import ParsedRobot
 from urdf_validator_main.physics.chain_walker import walk
 from urdf_validator_main.physics.robot_classifier import detect_robot_type
-from urdf_validator_main.physics.support_polygon import extract_wheeled_polygon
+from urdf_validator_main.physics.support_polygon import collect_wheel_contacts, extract_wheeled_polygon
 from urdf_validator_main.report.models import ValidationReport
 
 _COMPASS = ["E", "NE", "N", "NW", "W", "SW", "S", "SE"]
@@ -20,24 +20,45 @@ def _cardinal_direction(from_x: float, from_y: float, to_x: float, to_y: float) 
     return _COMPASS[idx]
 
 
+def _unknown(report: ValidationReport, reason: str) -> None:
+    report.stability.status = "UNKNOWN"
+    report.stability.reason = reason
+
+
 def run(parsed: ParsedRobot, report: ValidationReport) -> None:
     try:
         robot_type = detect_robot_type(parsed)
 
         if robot_type != "wheeled":
-            report.stability.status = "UNKNOWN"
+            _unknown(report, f"robot type '{robot_type}' — stability only computed for wheeled robots")
             return
 
         frames = walk(parsed)
         polygon = extract_wheeled_polygon(parsed, frames)
 
         if polygon is None:
-            report.stability.status = "UNKNOWN"
+            contacts = collect_wheel_contacts(parsed, frames)
+            n = len(contacts)
+            if n == 0:
+                _unknown(report, "no wheel links found in URDF")
+            elif n == 1:
+                _unknown(report, "1 wheel contact found — cannot determine a stability axis")
+            elif n == 2:
+                _unknown(
+                    report,
+                    "2 wheel contacts found (wheel axle only) — a third contact point is needed"
+                    " for a 2D support polygon; caster may not be modeled in this URDF",
+                )
+            else:
+                _unknown(
+                    report,
+                    f"{n} wheel contacts are collinear — convex hull degenerates to a line, not a polygon",
+                )
             return
 
         com = report.statics.full_body_com
         if com is None:
-            report.stability.status = "UNKNOWN"
+            _unknown(report, "full-body COM unavailable — check that link masses are declared")
             return
 
         from shapely.geometry import Point
@@ -58,4 +79,4 @@ def run(parsed: ParsedRobot, report: ValidationReport) -> None:
         report.stability.status = "PASS" if stable else "FAIL"
 
     except Exception:
-        report.stability.status = "UNKNOWN"
+        _unknown(report, "internal error during stability computation")

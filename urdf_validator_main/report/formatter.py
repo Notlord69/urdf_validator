@@ -106,7 +106,9 @@ def _statics_section(statics: StaticsReport) -> list:
 
 def _stability_section(stability: StabilityReport) -> list:
     if stability.status == "UNKNOWN":
-        return []
+        if not stability.reason:
+            return []
+        return [f"[STABILITY]  UNKNOWN — {stability.reason}"]
 
     if stability.stable:
         badge = f"{_GREEN}✓ STABLE{_RESET}"

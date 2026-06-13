@@ -12,12 +12,21 @@ except ImportError:
     _SHAPELY_OK = False
 
 
-def _wheel_radius(link: ParsedLink) -> float:
-    gt = link.collision_geometry_type or link.visual_geometry_type
-    dims = link.collision_geometry_dims or link.visual_geometry_dims
-    if gt in ("cylinder", "sphere") and dims:
-        return float(dims[0])
-    return 0.0
+def collect_wheel_contacts(
+    parsed: ParsedRobot,
+    frames: Dict[str, LinkFrame],
+) -> List[tuple]:
+    """Return (x, y) contact points for every link with 'wheel' in its name."""
+    pts: List[tuple] = []
+    for link in parsed.links:
+        if "wheel" not in link.name.lower():
+            continue
+        frame = frames.get(link.name)
+        if frame is None:
+            continue
+        center = frame.T_world[:3, 3]
+        pts.append((float(center[0]), float(center[1])))
+    return pts
 
 
 def extract_wheeled_polygon(
@@ -32,15 +41,7 @@ def extract_wheeled_polygon(
     if not _SHAPELY_OK:
         return None
 
-    contact_xy: List[tuple] = []
-    for link in parsed.links:
-        if "wheel" not in link.name.lower():
-            continue
-        frame = frames.get(link.name)
-        if frame is None:
-            continue
-        center = frame.T_world[:3, 3]
-        contact_xy.append((float(center[0]), float(center[1])))
+    contact_xy = collect_wheel_contacts(parsed, frames)
 
     if len(contact_xy) < 3:
         return None

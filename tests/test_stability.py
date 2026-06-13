@@ -12,6 +12,8 @@ import pytest
 from urdf_validator_main.parser.urdf_adapter import ParsedJoint, ParsedLink, ParsedRobot
 from urdf_validator_main.checks import stability
 from urdf_validator_main.report.models import SchemaReport, StabilityReport, StaticsReport, ValidationReport
+from urdf_validator_main.physics.support_polygon import collect_wheel_contacts
+from urdf_validator_main.physics.chain_walker import walk
 
 
 # ---------------------------------------------------------------------------
@@ -38,6 +40,43 @@ def _fixed_joint(name: str, parent: str, child: str, xyz) -> ParsedJoint:
         limit_effort=None, limit_velocity=None,
         origin_xyz=list(xyz), origin_rpy=[0.0, 0.0, 0.0],
     )
+
+
+def _one_wheel_robot() -> ParsedRobot:
+    return ParsedRobot(
+        name="unicycle",
+        links=[_link("base_link"), _link("wheel_center", radius=0.3)],
+        joints=[_fixed_joint("j", "base_link", "wheel_center", [0.0, 0.0, 0.3])],
+    )
+
+
+def _two_wheel_robot() -> ParsedRobot:
+    links = [
+        _link("base_link"),
+        _link("wheel_l", radius=0.3),
+        _link("wheel_r", radius=0.3),
+    ]
+    joints = [
+        _fixed_joint("jl", "base_link", "wheel_l", [ 1.0, 0.0, 0.3]),
+        _fixed_joint("jr", "base_link", "wheel_r", [-1.0, 0.0, 0.3]),
+    ]
+    return ParsedRobot(name="diff_drive", links=links, joints=joints)
+
+
+def _collinear_wheel_robot() -> ParsedRobot:
+    """3 wheels all on the Y axis — collinear → LineString hull."""
+    links = [
+        _link("base_link"),
+        _link("wheel_a", radius=0.3),
+        _link("wheel_b", radius=0.3),
+        _link("wheel_c", radius=0.3),
+    ]
+    joints = [
+        _fixed_joint("ja", "base_link", "wheel_a", [0.0, -1.0, 0.3]),
+        _fixed_joint("jb", "base_link", "wheel_b", [0.0,  0.0, 0.3]),
+        _fixed_joint("jc", "base_link", "wheel_c", [0.0,  1.0, 0.3]),
+    ]
+    return ParsedRobot(name="collinear", links=links, joints=joints)
 
 
 def _four_wheel_robot() -> ParsedRobot:
@@ -139,11 +178,10 @@ def test_tip_direction_set_when_stable_too():
 
 
 # ---------------------------------------------------------------------------
-# Graceful degradation
+# Graceful degradation — status
 # ---------------------------------------------------------------------------
 
 def test_unknown_robot_type_gives_unknown_status():
-    """A robot with no wheel links has unknown type → stability UNKNOWN."""
     links = [_link("base_link"), _link("torso")]
     joints = [_fixed_joint("j", "base_link", "torso", [0, 0, 0])]
     robot = ParsedRobot(name="arm", links=links, joints=joints)
@@ -153,29 +191,104 @@ def test_unknown_robot_type_gives_unknown_status():
 
 
 def test_missing_com_gives_unknown_status():
-    """If statics.full_body_com is None, stability cannot be computed."""
     robot = _four_wheel_robot()
     report = ValidationReport(schema=SchemaReport())
-    # full_body_com is None (default)
     stability.run(robot, report)
     assert report.stability.status == "UNKNOWN"
 
 
 def test_two_wheel_robot_gives_unknown_status():
-    """2 wheels → degenerate polygon → UNKNOWN."""
-    links = [
-        _link("base_link"),
-        _link("wheel_l", radius=0.3),
-        _link("wheel_r", radius=0.3),
-    ]
-    joints = [
-        _fixed_joint("jl", "base_link", "wheel_l", [ 1.0, 0.0, 0.3]),
-        _fixed_joint("jr", "base_link", "wheel_r", [-1.0, 0.0, 0.3]),
-    ]
-    robot = ParsedRobot(name="diff_drive", links=links, joints=joints)
+    report = _report_with_com([0.0, 0.0, 0.5])
+    stability.run(_two_wheel_robot(), report)
+    assert report.stability.status == "UNKNOWN"
+
+
+def test_pass_status_has_no_reason():
+    report = _report_with_com([0.0, 0.0, 0.5])
+    stability.run(_four_wheel_robot(), report)
+    assert report.stability.status == "PASS"
+    assert report.stability.reason is None
+
+
+# ---------------------------------------------------------------------------
+# Reason strings — each UNKNOWN branch sets a specific reason
+# ---------------------------------------------------------------------------
+
+def test_non_wheeled_robot_reason_mentions_robot_type():
+    links = [_link("base_link"), _link("torso")]
+    joints = [_fixed_joint("j", "base_link", "torso", [0, 0, 0])]
+    robot = ParsedRobot(name="arm", links=links, joints=joints)
     report = _report_with_com([0.0, 0.0, 0.5])
     stability.run(robot, report)
+    assert report.stability.reason is not None
+    assert "robot type" in report.stability.reason
+
+
+def test_one_wheel_contact_reason():
+    report = _report_with_com([0.0, 0.0, 0.5])
+    stability.run(_one_wheel_robot(), report)
     assert report.stability.status == "UNKNOWN"
+    assert report.stability.reason is not None
+    assert "1 wheel contact" in report.stability.reason
+
+
+def test_two_wheel_contacts_reason_mentions_axle():
+    report = _report_with_com([0.0, 0.0, 0.5])
+    stability.run(_two_wheel_robot(), report)
+    assert report.stability.reason is not None
+    assert "wheel axle only" in report.stability.reason
+
+
+def test_collinear_contacts_reason_mentions_collinear():
+    report = _report_with_com([0.0, 0.0, 0.5])
+    stability.run(_collinear_wheel_robot(), report)
+    assert report.stability.status == "UNKNOWN"
+    assert report.stability.reason is not None
+    assert "collinear" in report.stability.reason
+
+
+def test_missing_com_reason_mentions_com():
+    robot = _four_wheel_robot()
+    report = ValidationReport(schema=SchemaReport())
+    stability.run(robot, report)
+    assert report.stability.reason is not None
+    assert "COM" in report.stability.reason
+
+
+def test_all_unknown_branches_set_reason():
+    """Smoke-check: every UNKNOWN outcome has a non-empty reason."""
+    cases = [
+        # (robot, report)
+        (ParsedRobot("arm", [_link("base_link")], []), ValidationReport(schema=SchemaReport())),
+        (_one_wheel_robot(),      _report_with_com([0, 0, 0.5])),
+        (_two_wheel_robot(),      _report_with_com([0, 0, 0.5])),
+        (_collinear_wheel_robot(), _report_with_com([0, 0, 0.5])),
+        (_four_wheel_robot(),     ValidationReport(schema=SchemaReport())),  # missing COM
+    ]
+    for robot, report in cases:
+        stability.run(robot, report)
+        assert report.stability.status == "UNKNOWN", f"expected UNKNOWN for {robot.name}"
+        assert report.stability.reason, f"expected non-empty reason for {robot.name}"
+
+
+# ---------------------------------------------------------------------------
+# collect_wheel_contacts — public helper
+# ---------------------------------------------------------------------------
+
+def test_collect_wheel_contacts_returns_xy_for_wheel_links():
+    robot = _two_wheel_robot()
+    frames = walk(robot)
+    pts = collect_wheel_contacts(robot, frames)
+    assert len(pts) == 2
+    assert all(len(p) == 2 for p in pts)
+
+
+def test_collect_wheel_contacts_ignores_non_wheel_links():
+    links = [_link("base_link"), _link("torso")]
+    joints = [_fixed_joint("j", "base_link", "torso", [0, 0, 0])]
+    robot = ParsedRobot(name="arm", links=links, joints=joints)
+    pts = collect_wheel_contacts(robot, walk(robot))
+    assert pts == []
 
 
 # ---------------------------------------------------------------------------
@@ -184,9 +297,8 @@ def test_two_wheel_robot_gives_unknown_status():
 
 def test_formatter_shows_pass_when_stable():
     from urdf_validator_main.report.formatter import format_report
-    robot = _four_wheel_robot()
     report = _report_with_com([0.0, 0.0, 0.5])
-    stability.run(robot, report)
+    stability.run(_four_wheel_robot(), report)
     output = format_report(report)
     assert "[STABILITY]" in output
     assert "STABLE" in output
@@ -194,19 +306,39 @@ def test_formatter_shows_pass_when_stable():
 
 def test_formatter_shows_fail_when_unstable():
     from urdf_validator_main.report.formatter import format_report
-    robot = _four_wheel_robot()
     report = _report_with_com([5.0, 5.0, 0.5])
-    stability.run(robot, report)
+    stability.run(_four_wheel_robot(), report)
     output = format_report(report)
     assert "[STABILITY]" in output
     assert "UNSTABLE" in output
 
 
-def test_formatter_omits_stability_when_unknown():
+def test_formatter_shows_unknown_with_reason():
+    """UNKNOWN with a reason → [STABILITY] line appears with the reason text."""
     from urdf_validator_main.report.formatter import format_report
     links = [_link("base_link")]
     robot = ParsedRobot(name="arm", links=links, joints=[])
     report = ValidationReport(schema=SchemaReport())
     stability.run(robot, report)
+    output = format_report(report)
+    assert "[STABILITY]" in output
+    assert "UNKNOWN" in output
+    assert "robot type" in output
+
+
+def test_formatter_shows_reason_for_two_wheel_robot():
+    from urdf_validator_main.report.formatter import format_report
+    report = _report_with_com([0.0, 0.0, 0.5])
+    stability.run(_two_wheel_robot(), report)
+    output = format_report(report)
+    assert "[STABILITY]" in output
+    assert "wheel axle only" in output
+
+
+def test_formatter_silent_when_unknown_has_no_reason():
+    """StabilityReport with UNKNOWN and reason=None → section omitted (safe fallback)."""
+    from urdf_validator_main.report.formatter import format_report
+    report = ValidationReport(schema=SchemaReport())
+    # manually leave stability as default (UNKNOWN, reason=None)
     output = format_report(report)
     assert "[STABILITY]" not in output
