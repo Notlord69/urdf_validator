@@ -4,6 +4,7 @@ import sys
 from datetime import datetime, timezone
 
 from urdf_validator_main.checks.schema import run as run_schema_checks
+from urdf_validator_main.checks.stability import run as run_stability
 from urdf_validator_main.checks.statics import run as run_statics
 from urdf_validator_main.parser.urdf_adapter import ParseError, ParsedRobot, load_urdf
 from urdf_validator_main.physics.robot_classifier import detect_robot_type
@@ -82,5 +83,6 @@ def main() -> None:
     run_schema_checks(result, report)
     _populate_link_physics(result, report)
     run_statics(result, report)
+    run_stability(result, report)
     print(format_report(report))
     sys.exit(_exit_code(report))

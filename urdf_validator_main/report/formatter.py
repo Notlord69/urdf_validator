@@ -1,6 +1,6 @@
 import os
 
-from urdf_validator_main.report.models import LinkPhysicsReport, SchemaReport, StaticsReport, ValidationReport
+from urdf_validator_main.report.models import LinkPhysicsReport, SchemaReport, StaticsReport, StabilityReport, ValidationReport
 
 _GREEN = "\033[32m"
 _YELLOW = "\033[33m"
@@ -16,6 +16,7 @@ def format_report(report: ValidationReport) -> str:
     lines.extend(_schema_section(report.schema))
     lines.extend(_physics_section(report.links))
     lines.extend(_statics_section(report.statics))
+    lines.extend(_stability_section(report.stability))
     return "\n".join(lines)
 
 
@@ -101,6 +102,21 @@ def _statics_section(statics: StaticsReport) -> list:
             f"{margin_str}  {color}{j.status}{_RESET}"
         )
     return lines
+
+
+def _stability_section(stability: StabilityReport) -> list:
+    if stability.status == "UNKNOWN":
+        return []
+
+    if stability.stable:
+        badge = f"{_GREEN}✓ STABLE{_RESET}"
+    else:
+        badge = f"{_RED}✗ UNSTABLE{_RESET}"
+
+    margin_str = f"  margin {stability.margin_mm:.1f} mm" if stability.margin_mm is not None else ""
+    tip_str = f"  tip: {stability.tip_direction}" if stability.tip_direction and not stability.stable else ""
+
+    return [f"[STABILITY]  {badge}{margin_str}{tip_str}"]
 
 
 def _schema_section(schema: SchemaReport) -> list:
