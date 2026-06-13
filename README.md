@@ -75,16 +75,16 @@ urdf_validate robot.urdf --deep
 
 ## Status
 
-Pre-development — v0.1 targets schema validation and physics confidence levels.
+**v0.2.0-dev** — Schema validation and statics pipeline (chain walker, full-body COM, gravity torque margins) are functional. Terminal output includes `[SCHEMA]`, `[PHYSICS]`, and `[STATICS]` sections. MuJoCo ground-truth comparison test is written; stability and workspace phases are next.
 
-| Version | Target | Focus |
-|---|---|---|
-| v0.1 | Month 1 | Schema + physics confidence (proof of life) |
-| v0.2 | Month 2 | Statics pipeline — torque margins |
-| v0.3 | Month 3 | Stability analysis |
-| v0.4 | Month 4 | Full pipeline + JSON export |
-| v0.5 | Month 5 | Hardening — community pre-release |
-| v1.0 | Month 6 | Public release |
+| Version | Target | Status | Focus |
+|---|---|---|---|
+| v0.1 | Month 1 | **Complete** | Schema + physics confidence (proof of life) |
+| v0.2 | Month 2 | **In progress** | Statics pipeline — torque margins |
+| v0.3 | Month 3 | Not started | Stability analysis |
+| v0.4 | Month 4 | Not started | Full pipeline + JSON export |
+| v0.5 | Month 5 | Not started | Hardening — community pre-release |
+| v1.0 | Month 6 | Not started | Public release |
 
 ## License
 

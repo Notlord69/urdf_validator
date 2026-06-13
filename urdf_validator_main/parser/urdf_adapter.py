@@ -23,6 +23,8 @@ class ParsedLink:
     inertia_confidence: str = "missing"   # "exact" | "missing" (v0.1 only)
     visual_geometry_dims: Optional[List[float]] = None    # box:[l,w,h] cyl:[r,length] sphere:[r] mesh:None
     collision_geometry_dims: Optional[List[float]] = None # same convention
+    inertia_origin_xyz: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    inertia_origin_rpy: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
 
 
 @dataclass
@@ -217,6 +219,17 @@ def load_urdf(path: str) -> Union[ParsedRobot, ParseError]:
                     if inertia is not None and np.all(np.isfinite(inertia))
                     else "missing"
                 )
+                inertia_origin_xyz = [0.0, 0.0, 0.0]
+                inertia_origin_rpy = [0.0, 0.0, 0.0]
+                try:
+                    if lnk.inertial is not None and lnk.inertial.origin is not None:
+                        o = lnk.inertial.origin
+                        if o.xyz is not None:
+                            inertia_origin_xyz = list(o.xyz)
+                        if o.rpy is not None:
+                            inertia_origin_rpy = list(o.rpy)
+                except Exception:
+                    pass
                 parsed_links.append(
                     ParsedLink(
                         name=lnk.name,
@@ -229,6 +242,8 @@ def load_urdf(path: str) -> Union[ParsedRobot, ParseError]:
                         inertia_confidence=inertia_confidence,
                         visual_geometry_dims=_geometry_dims(lnk.visuals),
                         collision_geometry_dims=_geometry_dims(lnk.collisions),
+                        inertia_origin_xyz=inertia_origin_xyz,
+                        inertia_origin_rpy=inertia_origin_rpy,
                     )
                 )
             except Exception:
