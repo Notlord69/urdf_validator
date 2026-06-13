@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from urdf_validator_main.checks.schema import run as run_schema_checks
 from urdf_validator_main.checks.statics import run as run_statics
 from urdf_validator_main.parser.urdf_adapter import ParseError, ParsedRobot, load_urdf
+from urdf_validator_main.physics.robot_classifier import detect_robot_type
 from urdf_validator_main.report.formatter import format_report
 from urdf_validator_main.report.models import LinkPhysicsReport, ValidationReport
 
@@ -75,6 +76,7 @@ def main() -> None:
     report = ValidationReport(
         urdf_path=path,
         robot_name=result.name,
+        robot_type=detect_robot_type(result),
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
     run_schema_checks(result, report)
