@@ -26,6 +26,10 @@ def run(parsed: ParsedRobot, report: ValidationReport) -> None:
     _check_zero_mass(parsed, report)
     _check_zero_inertia(parsed, report)
     _check_inertia_positive_definite(parsed, report)
+    _check_inverted_limits(parsed, report)
+    _check_missing_limits(parsed, report)
+    _check_visual_no_collision(parsed, report)
+    _check_high_link_count(parsed, report)
     _set_schema_status(report)
 
 
@@ -216,6 +220,65 @@ def _check_inertia_positive_definite(
                 f"Link '{lnk.name}' inertia eigenvalue check failed "
                 "— tensor may be malformed"
             )
+
+
+# ---------------------------------------------------------------------------
+# Joint limit checks
+# ---------------------------------------------------------------------------
+
+def _check_inverted_limits(parsed: ParsedRobot, report: ValidationReport) -> None:
+    """Warn when a revolute/prismatic joint has lower limit greater than upper limit."""
+    for j in parsed.joints:
+        if j.joint_type not in ("revolute", "prismatic"):
+            continue
+        if j.limit_lower is None or j.limit_upper is None:
+            continue
+        if j.limit_lower > j.limit_upper:
+            report.schema.warnings.append(
+                f"Joint '{j.name}' has inverted limits: "
+                f"lower={j.limit_lower} > upper={j.limit_upper}"
+            )
+
+
+def _check_missing_limits(parsed: ParsedRobot, report: ValidationReport) -> None:
+    """Flag revolute/prismatic/continuous joints that declare no effort or velocity limit."""
+    for j in parsed.joints:
+        if j.joint_type not in ("revolute", "prismatic", "continuous"):
+            continue
+        missing = []
+        if j.limit_effort is None:
+            missing.append("effort")
+        if j.limit_velocity is None:
+            missing.append("velocity")
+        if missing:
+            report.schema.infos.append(
+                f"Joint '{j.name}' ({j.joint_type}) has no {' or '.join(missing)} limit declared"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Geometry checks
+# ---------------------------------------------------------------------------
+
+def _check_visual_no_collision(parsed: ParsedRobot, report: ValidationReport) -> None:
+    """Flag movable links that have a visual geometry but no collision geometry."""
+    for lnk in parsed.links:
+        if lnk.joint_type_incoming in ("fixed", None):
+            continue
+        if lnk.visual_geometry_type is not None and lnk.collision_geometry_type is None:
+            report.schema.infos.append(
+                f"Link '{lnk.name}' has visual geometry ({lnk.visual_geometry_type}) "
+                "but no collision geometry — will be invisible to physics engines"
+            )
+
+
+def _check_high_link_count(parsed: ParsedRobot, report: ValidationReport) -> None:
+    """Flag robots with more than 50 links as potentially expensive to simulate."""
+    n = len(parsed.links)
+    if n > 50:
+        report.schema.infos.append(
+            f"Robot has {n} links (>50) — may be slow to simulate or validate"
+        )
 
 
 # ---------------------------------------------------------------------------
