@@ -108,6 +108,7 @@
 | Item                                                        | Status              | Notes                                                                 |
 |-------------------------------------------------------------|---------------------|-----------------------------------------------------------------------|
 | Wheeled robot — name-based contact extraction (`"wheel"` in link name) | **DONE** | `physics/support_polygon.py` — case-insensitive; returns `None` when <3 non-collinear contacts |
+| `collect_wheel_contacts()` public helper                    | **DONE**            | Extracted from `extract_wheeled_polygon`; returns raw `List[Tuple[float,float]]` contact XY points |
 | 2D convex hull via `shapely`                                | **DONE**            | `MultiPoint.convex_hull`; degenerates (line/point) return `None`     |
 | Humanoid foot contact patch extraction                      | **PENDING**         |                                                                       |
 | Unknown type fallback (lowest link positions)               | **PENDING**         |                                                                       |
@@ -130,7 +131,8 @@
 | Inside/outside support polygon check                        | **DONE**    | `shapely.Polygon.contains(Point(com_xy))`                 |
 | Stability margin in mm (signed distance to edge)            | **DONE**    | `exterior.distance()` × 1000; negated when outside        |
 | Tip direction                                               | **DONE**    | 8-compass via `atan2` to nearest exterior point           |
-| Status: PASS / WARN / FAIL                                  | **DONE**    | PASS if stable, FAIL if not; UNKNOWN when polygon is None |
+| Status: PASS / WARN / FAIL                                  | **DONE**    | PASS if stable, FAIL if not; UNKNOWN with justified reason when polygon is None |
+| UNKNOWN reason string per failure branch                    | **DONE**    | `StabilityReport.reason` populated for every UNKNOWN case: wrong robot type, 0/1/2/collinear contacts, missing COM, internal error |
 
 ### 3.4.3 COM Height Ratio
 
@@ -180,7 +182,7 @@
 | `ValidationReport` with all sub-report fields               | **DONE**    | `report/models.py`                             |
 | `SchemaReport`, `LinkPhysicsReport`                        | **DONE**    |                                                |
 | `StaticsReport`, `JointStaticsReport`                      | **DONE**    | Fully populated by `checks/statics.py`         |
-| `StabilityReport`, `WorkspaceReport`                       | **DONE**    | Dataclass defined; not yet populated by pipeline |
+| `StabilityReport`, `WorkspaceReport`                       | **DONE**    | `StabilityReport` fully populated by pipeline; `reason: Optional[str]` field added for UNKNOWN diagnostics |
 | `Confidence` type: `exact/estimated/guessed/missing`       | **DONE**    |                                                |
 | `overall_status` derivation (PASS/WARN/FAIL)               | **PENDING** | Field exists; never set beyond default "UNKNOWN" |
 | `confidence_level` derivation (HIGH/MEDIUM/LOW)            | **PENDING** | Field exists; never set beyond default "LOW"   |
@@ -194,7 +196,7 @@
 | `[SCHEMA]` section with colored status and issue list      | **DONE**    |                                               |
 | `[PHYSICS]` section with per-link confidence summary       | **DONE**    | mass/inertia exact vs missing counts          |
 | `[STATICS]` section                                        | **DONE**    | COM, total mass, per-joint torque/margin/status |
-| `[STABILITY]` section                                      | **DONE**    | STABLE/UNSTABLE with margin and tip direction; omitted when UNKNOWN |
+| `[STABILITY]` section                                      | **DONE**    | STABLE/UNSTABLE with margin and tip direction; UNKNOWN shows `UNKNOWN — <reason>`; omitted only when reason is None (safe fallback) |
 | `[WORKSPACE]` section                                      | **PENDING** | Not implemented                               |
 | "Full report: …json" footer line                           | **PENDING** | Not implemented                               |
 
@@ -275,7 +277,7 @@
 | `test_mujoco_validation.py`| MuJoCo ground-truth torque comparison on fetch_robot (10% tolerance) | **DONE** (written; requires MuJoCo install to run) |
 | No-crash on 6 ref URDFs    | ANYmal, Franka Panda, PR2, Spot, TurtleBot3, fetch            | **DONE** |
 | `test_support_polygon.py`  | `extract_wheeled_polygon` — polygon shape, degenerate cases, name matching | **DONE** |
-| `test_stability.py`        | `stability.run` — containment, margin, tip direction, degradation, formatter | **DONE** |
+| `test_stability.py`        | `stability.run` — containment, margin, tip direction, degradation, reason strings per UNKNOWN branch, `collect_wheel_contacts`, formatter | **DONE** |
 | `test_robot_classifier.py` | `detect_robot_type` — keyword variants, priority, integration on TurtleBot3/Fetch | **DONE** |
 | `test_schema_new_checks.py`| Four new schema checks (inverted-limits, missing-limits, visual-no-collision, high-link-count) | **DONE** |
 | Workspace tests             | Not yet written                                              | **PENDING** |

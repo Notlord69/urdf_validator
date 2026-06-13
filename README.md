@@ -150,9 +150,19 @@ Available for wheeled robots with 3 or more distinctly-named wheel contacts.
 - **Margin** — signed distance from the COM projection to the nearest polygon edge in mm. Positive = stable; negative = already past the tipping point.
 - **Tip direction** — compass direction (`N / NE / E / SE / S / SW / W / NW`) toward the nearest tipping edge.
 
-Robots where a valid polygon cannot be formed (fewer than 3 non-collinear wheel contacts, unknown robot type) report `[STABILITY]` as `UNKNOWN` — the section is omitted from output.
+Robots where a valid polygon cannot be formed show `[STABILITY]  UNKNOWN — <reason>` with a specific explanation of why stability could not be computed. The section is only omitted when no reason can be determined (should not occur in practice).
 
-> **Known limitation:** Differential-drive robots such as TurtleBot3 and Fetch have only 2 links with "wheel" in their name. The passive caster is not named a wheel, so the polygon degenerates and stability is reported as `UNKNOWN`. Geometry-based contact detection (cylindrical geometry ratio + caster inclusion) is planned for **v0.5**.
+Reason strings by failure mode:
+
+| Failure | Output |
+|---|---|
+| Non-wheeled robot | `UNKNOWN — robot type 'unknown' — stability only computed for wheeled robots` |
+| 1 wheel contact | `UNKNOWN — 1 wheel contact found — cannot determine a stability axis` |
+| 2 wheel contacts | `UNKNOWN — 2 wheel contacts found (wheel axle only) — a third contact point is needed for a 2D support polygon; caster may not be modeled in this URDF` |
+| 3+ collinear contacts | `UNKNOWN — N wheel contacts are collinear — convex hull degenerates to a line, not a polygon` |
+| COM unavailable | `UNKNOWN — full-body COM unavailable — check that link masses are declared` |
+
+> **Known limitation:** Differential-drive robots such as TurtleBot3 and Fetch have only 2 links with "wheel" in their name. The passive caster is not named a wheel, so these robots show `[STABILITY]  UNKNOWN — 2 wheel contacts found (wheel axle only) …`. Geometry-based contact detection (cylindrical geometry ratio + caster inclusion) is planned for **v0.5**.
 
 ## Confidence Labels
 

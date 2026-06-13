@@ -165,7 +165,7 @@ An aggregate view across all joints is produced, identifying the weakest joint (
 
 The tool identifies the robot's contact points with the ground. Three cases are handled:
 
-- Wheeled robot: links with 'wheel' in name (case-insensitive substring match). Contact point = wheel centre in world frame (from chain walker), projected onto XY. The 2D convex hull (shapely) of all wheel contact points is the support polygon. Requires ≥ 3 non-collinear contact points; degenerates to UNKNOWN otherwise.
+- Wheeled robot: links with 'wheel' in name (case-insensitive substring match). Contact point = wheel centre in world frame (from chain walker), projected onto XY. The 2D convex hull (shapely) of all wheel contact points is the support polygon. Requires ≥ 3 non-collinear contact points; degenerates to UNKNOWN with a specific reason string otherwise (e.g. "2 wheel contacts found (wheel axle only) — a third contact point is needed for a 2D support polygon; caster may not be modeled in this URDF").
 - Humanoid: links with 'foot', 'ankle', or 'sole' in name. Contact patch = bounding box bottom face. During single support (one foot raised), only the stance foot polygon applies. *(Not yet implemented — v0.3 scope delivered name-matching for wheeled only.)*
 - Unknown type: lowest link positions used as contact estimate; flagged as low confidence. *(Not yet implemented.)*
 
@@ -187,7 +187,8 @@ Reported values:
 - stable: boolean
 - margin_mm: signed distance in millimetres (positive = stable, negative = tipping)
 - tip_direction: cardinal direction of the nearest tipping edge
-- Status: PASS (margin > 20 mm), WARN (0 to 20 mm), FAIL (negative)
+- reason: human-readable explanation string, populated on every UNKNOWN outcome; None on PASS/FAIL
+- Status: PASS (margin > 20 mm), WARN (0 to 20 mm), FAIL (negative), UNKNOWN with reason when polygon cannot be formed
 
 **3.4.3 COM Height Ratio**
 
