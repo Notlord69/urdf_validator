@@ -257,3 +257,13 @@ def test_task_fields_set_even_when_no_arm_chain():
     assert report.workspace.task == "pick_from_table"
     assert report.workspace.task_height_reachable is None
     assert report.workspace.task_reason is not None
+
+
+def test_task_name_without_height_records_task_not_reachable():
+    """task_name set, task_height_m=None: task recorded, reachability stays None."""
+    report = ValidationReport()
+    run(_one_dof_arm(), report, n_samples=200,
+        task_name="my_task", task_height_m=None)
+    assert report.workspace.task == "my_task"
+    assert report.workspace.task_target_height_m is None
+    assert report.workspace.task_height_reachable is None

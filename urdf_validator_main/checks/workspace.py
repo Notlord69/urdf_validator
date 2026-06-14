@@ -103,11 +103,14 @@ def run(parsed: ParsedRobot, report: ValidationReport,
         report.workspace.reach_confidence = "estimated"
         report.workspace.status = "PASS"
 
-        if task_name is not None and task_height_m is not None:
+        if task_name is not None:
             report.workspace.task = task_name
-            report.workspace.task_target_height_m = float(task_height_m)
-            vr = report.workspace.vertical_reach or 0.0
-            report.workspace.task_height_reachable = vr >= task_height_m
+            report.workspace.task_target_height_m = (
+                float(task_height_m) if task_height_m is not None else None
+            )
+            if task_height_m is not None:
+                vr = report.workspace.vertical_reach or 0.0
+                report.workspace.task_height_reachable = vr >= task_height_m
 
     except Exception:
         report.workspace.status = "UNKNOWN"
