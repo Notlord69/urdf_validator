@@ -199,3 +199,61 @@ def test_exception_in_fk_produces_unknown_not_crash(monkeypatch):
     report = _run(robot, n_samples=100)
     assert report.workspace.status == "UNKNOWN"
     assert report.workspace.reason == "Workspace computation failed"
+
+
+# ---------------------------------------------------------------------------
+# Task height checks
+# ---------------------------------------------------------------------------
+
+def _one_dof_arm() -> ParsedRobot:
+    """1-DOF arm: base (0 kg) → j1_link (0 kg) → arm (2 kg). EE at x=1m."""
+    return ParsedRobot(
+        name="r",
+        links=[_link("base", 0.0), _link("j1_link", 0.0), _link("arm", 2.0)],
+        joints=[
+            _joint("j1", "base", "j1_link", joint_type="revolute",
+                   axis=[0, 1, 0], lower=-3.14, upper=3.14),
+            _joint("j_ext", "j1_link", "arm", joint_type="fixed",
+                   xyz=[1.0, 0.0, 0.0]),
+        ],
+    )
+
+
+def test_task_fields_not_written_when_no_task():
+    report = ValidationReport()
+    run(_one_dof_arm(), report, n_samples=200)
+    assert report.workspace.task is None
+    assert report.workspace.task_height_reachable is None
+
+
+def test_task_height_reachable_when_reach_sufficient():
+    report = ValidationReport()
+    run(_one_dof_arm(), report, n_samples=1000,
+        task_name="pick_from_table", task_height_m=0.75)
+    assert report.workspace.task == "pick_from_table"
+    assert report.workspace.task_target_height_m == 0.75
+    assert report.workspace.task_height_reachable is True
+
+
+def test_task_height_not_reachable_when_reach_insufficient():
+    report = ValidationReport()
+    run(_one_dof_arm(), report, n_samples=1000,
+        task_name="push_button", task_height_m=5.0)
+    assert report.workspace.task_height_reachable is False
+
+
+def test_task_fields_set_even_when_no_arm_chain():
+    robot = ParsedRobot(
+        name="turtlebot",
+        links=[_link("base"), _link("lw"), _link("rw")],
+        joints=[
+            _joint("j_lw", "base", "lw", joint_type="continuous"),
+            _joint("j_rw", "base", "rw", joint_type="continuous"),
+        ],
+    )
+    report = ValidationReport()
+    run(robot, report, n_samples=100,
+        task_name="pick_from_table", task_height_m=0.75)
+    assert report.workspace.task == "pick_from_table"
+    assert report.workspace.task_height_reachable is None
+    assert report.workspace.task_reason is not None

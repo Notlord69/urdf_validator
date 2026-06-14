@@ -42,7 +42,9 @@ def _sample(chain, active_mask: List[bool], n: int) -> np.ndarray:
 
 
 def run(parsed: ParsedRobot, report: ValidationReport,
-        n_samples: Optional[int] = None) -> None:
+        n_samples: Optional[int] = None,
+        task_name: Optional[str] = None,
+        task_height_m: Optional[float] = None) -> None:
     try:
         arm_chains = detect_arm_chains(parsed)
         if not arm_chains:
@@ -53,6 +55,12 @@ def run(parsed: ParsedRobot, report: ValidationReport,
             report.unknowns.append(
                 "Workspace: no arm chain detected — robot may have no manipulator"
             )
+            if task_name is not None:
+                report.workspace.task = task_name
+                report.workspace.task_target_height_m = (
+                    float(task_height_m) if task_height_m is not None else None
+                )
+                report.workspace.task_reason = "no arm chain detected"
             return
 
         total_dof = sum(a.n_dof for a in arm_chains)
@@ -94,6 +102,12 @@ def run(parsed: ParsedRobot, report: ValidationReport,
         report.workspace.reach_from_base = max(per_from_base)
         report.workspace.reach_confidence = "estimated"
         report.workspace.status = "PASS"
+
+        if task_name is not None and task_height_m is not None:
+            report.workspace.task = task_name
+            report.workspace.task_target_height_m = float(task_height_m)
+            vr = report.workspace.vertical_reach or 0.0
+            report.workspace.task_height_reachable = vr >= task_height_m
 
     except Exception:
         report.workspace.status = "UNKNOWN"
