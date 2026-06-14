@@ -107,3 +107,80 @@ def test_max_chains_caps_results():
         joints.append(_joint(f"jb{i}", f"arm{i}_0", f"arm{i}_1", joint_type="revolute"))
     robot = ParsedRobot("r", links, joints)
     assert len(detect_arm_chains(robot, max_chains=2)) == 2
+
+
+import math
+import numpy as np
+from urdf_validator_main.physics.arm_chain import build_ikpy_chain
+
+
+def test_build_chain_single_revolute_active_mask():
+    arm = ArmChain(
+        root_link="base",
+        joints=[
+            _joint("j1", "base", "j1_link", joint_type="revolute",
+                   axis=[0, 1, 0], lower=-3.14, upper=3.14),
+            _joint("j_ext", "j1_link", "arm", joint_type="fixed",
+                   xyz=[1.0, 0.0, 0.0]),
+        ],
+        ee_link_name="arm",
+        n_dof=1,
+    )
+    chain, active_mask = build_ikpy_chain(arm)
+    assert len(chain.links) == 3
+    assert active_mask == [False, True, False]
+
+
+def test_build_chain_fk_at_zero_gives_offset():
+    arm = ArmChain(
+        root_link="base",
+        joints=[
+            _joint("j1", "base", "j1_link", joint_type="revolute",
+                   axis=[0, 1, 0], lower=-3.14, upper=3.14),
+            _joint("j_ext", "j1_link", "arm", joint_type="fixed",
+                   xyz=[1.0, 0.0, 0.0]),
+        ],
+        ee_link_name="arm",
+        n_dof=1,
+    )
+    chain, active_mask = build_ikpy_chain(arm)
+    T = chain.forward_kinematics([0.0, 0.0, 0.0])
+    np.testing.assert_allclose(T[:3, 3], [1.0, 0.0, 0.0], atol=1e-6)
+
+
+def test_build_chain_fixed_joint_has_false_in_mask():
+    arm = ArmChain(
+        root_link="base",
+        joints=[_joint("j_fix", "base", "ee", joint_type="fixed",
+                       xyz=[0.5, 0.0, 0.0])],
+        ee_link_name="ee",
+        n_dof=0,
+    )
+    chain, active_mask = build_ikpy_chain(arm)
+    assert active_mask == [False, False]
+
+
+def test_build_chain_continuous_uses_full_pi_range():
+    arm = ArmChain(
+        root_link="base",
+        joints=[_joint("j1", "base", "ee", joint_type="continuous",
+                       axis=[0, 0, 1])],
+        ee_link_name="ee",
+        n_dof=1,
+    )
+    chain, active_mask = build_ikpy_chain(arm)
+    lo, hi = chain.links[1].bounds
+    assert lo == pytest.approx(-math.pi, abs=0.01)
+    assert hi == pytest.approx(math.pi, abs=0.01)
+
+
+def test_build_chain_declared_limits_respected():
+    arm = ArmChain(
+        root_link="base",
+        joints=[_joint("j1", "base", "ee", joint_type="revolute",
+                       axis=[0, 1, 0], lower=-1.57, upper=1.57)],
+        ee_link_name="ee",
+        n_dof=1,
+    )
+    chain, _ = build_ikpy_chain(arm)
+    assert chain.links[1].bounds == pytest.approx((-1.57, 1.57))
