@@ -25,6 +25,8 @@ class JointStaticsReport:
     declared_effort: Optional[float] = None
     margin: Optional[float] = None
     status: str = "UNKNOWN"
+    subtree_mass: Optional[float] = None
+    summary: Optional[str] = None
 
 
 @dataclass
@@ -35,6 +37,12 @@ class StaticsReport:
     total_mass: Optional[float] = None
     mass_confidence: Confidence = "missing"
     status: str = "UNKNOWN"
+    com_height_above_ground: Optional[float] = None
+    heaviest_link_name: Optional[str] = None
+    heaviest_link_pct: Optional[float] = None
+    mass_split_warning: Optional[str] = None
+    weakest_joint_name: Optional[str] = None
+    payload_capacity_kg: Optional[float] = None
 
 
 @dataclass
@@ -55,6 +63,8 @@ class WorkspaceReport:
     vertical_reach: Optional[float] = None
     horizontal_reach: Optional[float] = None
     status: str = "UNKNOWN"
+    reach_from_base: Optional[float] = None
+    reason: Optional[str] = None
 
 
 @dataclass

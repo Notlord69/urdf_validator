@@ -70,6 +70,8 @@ def test_workspace_report_defaults():
     assert r.vertical_reach is None
     assert r.horizontal_reach is None
     assert r.status == "UNKNOWN"
+    assert r.reach_from_base is None
+    assert r.reason is None
 
 
 def test_schema_report_defaults():
