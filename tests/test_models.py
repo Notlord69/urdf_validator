@@ -74,6 +74,16 @@ def test_workspace_report_defaults():
     assert r.reason is None
 
 
+def test_workspace_report_has_task_fields():
+    r = WorkspaceReport()
+    assert r.task is None
+    assert r.task_target_height_m is None
+    assert r.task_height_reachable is None
+    assert r.task_com_stable_during_reach is None
+    assert r.task_com_shift_estimate_m is None
+    assert r.task_reason is None
+
+
 def test_schema_report_defaults():
     r = SchemaReport()
     assert r.status == "UNKNOWN"

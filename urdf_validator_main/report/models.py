@@ -65,6 +65,12 @@ class WorkspaceReport:
     status: str = "UNKNOWN"
     reach_from_base: Optional[float] = None
     reason: Optional[str] = None
+    task: Optional[str] = None
+    task_target_height_m: Optional[float] = None
+    task_height_reachable: Optional[bool] = None
+    task_com_stable_during_reach: Optional[bool] = None
+    task_com_shift_estimate_m: Optional[float] = None
+    task_reason: Optional[str] = None
 
 
 @dataclass
