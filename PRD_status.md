@@ -148,20 +148,24 @@
 
 ### 3.5.1 Forward Kinematics
 
-| Item                                                        | Status      |
-|-------------------------------------------------------------|-------------|
-| FK via `ikpy` wrapper                                       | **STUB**    | `checks/workspace.py` body is `pass` |
-| End-effector chain identification from URDF                 | **PENDING** |                                 |
-| Reachable workspace grid sampling                           | **PENDING** |                                 |
+| Item                                                        | Status      | Notes |
+|-------------------------------------------------------------|-------------|-------|
+| FK via `ikpy` wrapper                                       | **DONE**    | `build_ikpy_chain()` in `physics/arm_chain.py`; Monte Carlo sampling in `checks/workspace.py` |
+| End-effector chain identification from URDF                 | **DONE**    | `detect_arm_chains()` — BFS to terminals, filters by n_dof; continuous-only chains excluded |
+| Reachable workspace Monte Carlo sampling                    | **DONE**    | `_sample()` in `checks/workspace.py`; random joint angles within declared limits |
 
 ### 3.5.2 Reach Metrics
 
-| Item                                         | Status      |
-|----------------------------------------------|-------------|
-| `max_reach`                                  | **PENDING** |
-| `vertical_reach`                             | **PENDING** |
-| `horizontal_reach`                           | **PENDING** |
-| `reach_from_base`                            | **PENDING** |
+| Item                                         | Status      | Notes |
+|----------------------------------------------|-------------|-------|
+| `max_reach`                                  | **DONE**    | Max distance from shoulder frame across all sampled poses |
+| `vertical_reach`                             | **DONE**    | Max Z in world frame |
+| `horizontal_reach`                           | **DONE**    | Max XY distance from world origin |
+| `reach_from_base`                            | **DONE**    | Max 3D distance from world origin |
+
+### Per-Arm Workspace Reporting (Deferred)
+
+Workspace metrics are currently **aggregated** (max across all detected arm chains). A future `--detailed` flag or advanced report mode will expose per-arm reach envelopes separately. The `WorkspaceReport` model holds single scalar fields by design; extending to a list of per-arm entries is the planned migration path.
 
 ### 3.5.3 Task Declarations
 
@@ -197,7 +201,7 @@
 | `[PHYSICS]` section with per-link confidence summary       | **DONE**    | mass/inertia exact vs missing counts          |
 | `[STATICS]` section                                        | **DONE**    | COM, total mass, per-joint torque/margin/status |
 | `[STABILITY]` section                                      | **DONE**    | STABLE/UNSTABLE with margin and tip direction; UNKNOWN shows `UNKNOWN — <reason>`; omitted only when reason is None (safe fallback) |
-| `[WORKSPACE]` section                                      | **PENDING** | Not implemented                               |
+| `[WORKSPACE]` section                                      | **DONE**    | `_workspace_section()` in `report/formatter.py`; shows reach metrics or UNKNOWN reason |
 | "Full report: …json" footer line                           | **PENDING** | Not implemented                               |
 
 ### 3.6.3 JSON Export
@@ -280,7 +284,8 @@
 | `test_stability.py`        | `stability.run` — containment, margin, tip direction, degradation, reason strings per UNKNOWN branch, `collect_wheel_contacts`, formatter | **DONE** |
 | `test_robot_classifier.py` | `detect_robot_type` — keyword variants, priority, integration on TurtleBot3/Fetch | **DONE** |
 | `test_schema_new_checks.py`| Four new schema checks (inverted-limits, missing-limits, visual-no-collision, high-link-count) | **DONE** |
-| Workspace tests             | Not yet written                                              | **PENDING** |
+| `test_arm_chain.py`         | `ArmChain`, `detect_arm_chains`, `build_ikpy_chain` — chain detection, DOF counting, ikpy FK | **DONE** |
+| `test_workspace.py`         | `workspace.run` — arm detection, reach metrics, UNKNOWN path, no-crash contract | **DONE** |
 
 ---
 
