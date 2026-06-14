@@ -14,6 +14,12 @@ _N_SAMPLES_LARGE = 30_000
 _RNG_SEED = 0
 
 
+def _arm_mass(arm: ArmChain, parsed: ParsedRobot) -> float:
+    link_masses = {lnk.name: (lnk.mass or 0.0) for lnk in parsed.links}
+    child_names = {j.child for j in arm.joints}
+    return sum(link_masses.get(name, 0.0) for name in child_names)
+
+
 def _shoulder_world(arm: ArmChain, frames) -> np.ndarray:
     for j in arm.joints:
         if j.joint_type in _ACTUATED:
@@ -111,6 +117,27 @@ def run(parsed: ParsedRobot, report: ValidationReport,
             if task_height_m is not None:
                 vr = report.workspace.vertical_reach or 0.0
                 report.workspace.task_height_reachable = vr >= task_height_m
+
+            # COM-during-reach (Option B): midpoint-of-arm approximation.
+            # Scope: zero-pose support polygon only; single-arm worst case;
+            # arm COM approximated as halfway between shoulder and EE.
+            total_mass = report.statics.total_mass
+            margin_mm = report.stability.margin_mm
+            horiz = report.workspace.horizontal_reach
+
+            if total_mass and total_mass > 0.0 and margin_mm is not None and horiz is not None:
+                best_idx = per_horiz.index(max(per_horiz))
+                arm_mass_val = _arm_mass(arm_chains[best_idx], parsed)
+                shift_m = (arm_mass_val / total_mass) * (horiz / 2.0)
+                report.workspace.task_com_shift_estimate_m = float(shift_m)
+                report.workspace.task_com_stable_during_reach = (shift_m * 1000.0) < margin_mm
+            else:
+                reasons = []
+                if not total_mass:
+                    reasons.append("total mass unavailable")
+                if margin_mm is None:
+                    reasons.append("no wheeled support polygon")
+                report.workspace.task_reason = "; ".join(reasons) or "stability data unavailable"
 
     except Exception:
         report.workspace.status = "UNKNOWN"

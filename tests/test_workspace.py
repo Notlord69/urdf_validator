@@ -267,3 +267,61 @@ def test_task_name_without_height_records_task_not_reachable():
     assert report.workspace.task == "my_task"
     assert report.workspace.task_target_height_m is None
     assert report.workspace.task_height_reachable is None
+
+
+# ---------------------------------------------------------------------------
+# COM-during-reach (Option B — midpoint arm COM approximation)
+# ---------------------------------------------------------------------------
+
+def test_com_stable_when_shift_well_below_margin():
+    # arm: 2 kg of 10 kg total, 1 m horizontal reach
+    # shift = (2/10) * (1.0/2) = 0.1 m = 100 mm < 1000 mm margin → stable
+    report = ValidationReport()
+    report.statics.total_mass = 10.0
+    report.stability.margin_mm = 1000.0
+    run(_one_dof_arm(), report, n_samples=2000,
+        task_name="pick_from_table", task_height_m=0.5)
+    assert report.workspace.task_com_stable_during_reach is True
+    assert report.workspace.task_com_shift_estimate_m == pytest.approx(0.1, abs=0.03)
+
+
+def test_com_unstable_when_shift_above_margin():
+    # arm: 9 kg of 10 kg, 1 m horizontal reach
+    # shift = (9/10) * 0.5 = 0.45 m = 450 mm > 10 mm margin → unstable
+    robot = ParsedRobot(
+        name="r",
+        links=[_link("base", 0.0), _link("j1_link", 0.0), _link("arm", 9.0)],
+        joints=[
+            _joint("j1", "base", "j1_link", joint_type="revolute",
+                   axis=[0, 1, 0], lower=-3.14, upper=3.14),
+            _joint("j_ext", "j1_link", "arm", joint_type="fixed",
+                   xyz=[1.0, 0.0, 0.0]),
+        ],
+    )
+    report = ValidationReport()
+    report.statics.total_mass = 10.0
+    report.stability.margin_mm = 10.0
+    run(robot, report, n_samples=2000,
+        task_name="pick_from_table", task_height_m=0.5)
+    assert report.workspace.task_com_stable_during_reach is False
+
+
+def test_com_stability_unknown_when_no_stability_margin():
+    # margin_mm = None (non-wheeled robot)
+    report = ValidationReport()
+    report.statics.total_mass = 10.0
+    report.stability.margin_mm = None
+    run(_one_dof_arm(), report, n_samples=500,
+        task_name="pick_from_table", task_height_m=0.5)
+    assert report.workspace.task_com_stable_during_reach is None
+    assert report.workspace.task_reason is not None
+
+
+def test_com_stability_unknown_when_no_total_mass():
+    report = ValidationReport()
+    report.statics.total_mass = None
+    report.stability.margin_mm = 500.0
+    run(_one_dof_arm(), report, n_samples=500,
+        task_name="pick_from_table", task_height_m=0.5)
+    assert report.workspace.task_com_stable_during_reach is None
+    assert report.workspace.task_reason is not None
