@@ -125,7 +125,9 @@ def run(parsed: ParsedRobot, report: ValidationReport,
             margin_mm = report.stability.margin_mm
             horiz = report.workspace.horizontal_reach
 
-            if total_mass and total_mass > 0.0 and margin_mm is not None and horiz is not None:
+            if total_mass and total_mass > 0.0 and margin_mm is not None:
+                # For multi-arm robots, picks the first arm with max horizontal reach (detection order),
+                # not necessarily the arm whose shift is worst-case for the given support polygon.
                 best_idx = per_horiz.index(max(per_horiz))
                 arm_mass_val = _arm_mass(arm_chains[best_idx], parsed)
                 shift_m = (arm_mass_val / total_mass) * (horiz / 2.0)
