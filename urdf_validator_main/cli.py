@@ -10,6 +10,7 @@ from urdf_validator_main.checks.workspace import run as run_workspace
 from urdf_validator_main.parser.urdf_adapter import ParseError, ParsedRobot, load_urdf
 from urdf_validator_main.physics.robot_classifier import detect_robot_type
 from urdf_validator_main.report.formatter import format_report
+from urdf_validator_main.report.json_export import export
 from urdf_validator_main.report.models import LinkPhysicsReport, ValidationReport
 
 
@@ -20,6 +21,12 @@ _SCHEMA_TO_STATUS = {
     "WARN": "WARN",
     "PASS": "PASS",
     "INFO": "PASS",
+}
+
+_TASK_HEIGHTS = {
+    "pick_from_ground": 0.0,
+    "pick_from_table": 0.75,
+    "push_button": 1.2,
 }
 
 
@@ -53,7 +60,7 @@ def parse_args(argv=None):
     parser.add_argument(
         "--output-dir",
         metavar="DIR",
-        help="Directory for JSON report output (not yet implemented)",
+        help="Directory for JSON report output (default: alongside input file)",
     )
     parser.add_argument(
         "--pose",
@@ -62,7 +69,22 @@ def parse_args(argv=None):
         metavar="POSE",
         help="Joint configuration for statics (zero|home|limits|custom). Only 'zero' is implemented in v0.2.",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--task",
+        choices=["pick_from_ground", "pick_from_table", "push_button", "custom"],
+        metavar="TASK",
+        help="Task capability check: pick_from_ground|pick_from_table|push_button|custom",
+    )
+    parser.add_argument(
+        "--height",
+        type=float,
+        metavar="M",
+        help="Target height in metres (required with --task custom)",
+    )
+    args = parser.parse_args(argv)
+    if args.task == "custom" and args.height is None:
+        parser.error("--height is required when --task is 'custom'")
+    return args
 
 
 def _exit_code(report: ValidationReport) -> int:
@@ -95,6 +117,14 @@ def _populate_link_physics(parsed: ParsedRobot, report: ValidationReport) -> Non
             continue
 
 
+def _json_output_path(urdf_file: str, output_dir) -> str:
+    stem = os.path.splitext(os.path.basename(urdf_file))[0]
+    filename = f"{stem}_validation.json"
+    if output_dir:
+        return os.path.join(output_dir, filename)
+    return os.path.join(os.path.dirname(os.path.abspath(urdf_file)), filename)
+
+
 def main() -> None:
     args = parse_args()
     if args.pose != "zero":
@@ -106,6 +136,10 @@ def main() -> None:
         print(f"[ERROR] {result.message}")
         sys.exit(2)
 
+    task_height_m = None
+    if args.task:
+        task_height_m = args.height if args.task == "custom" else _TASK_HEIGHTS[args.task]
+
     report = ValidationReport(
         urdf_path=path,
         robot_name=result.name,
@@ -116,8 +150,16 @@ def main() -> None:
     _populate_link_physics(result, report)
     run_statics(result, report)
     run_stability(result, report)
-    run_workspace(result, report)
+    run_workspace(result, report, task_name=args.task, task_height_m=task_height_m)
     report.overall_status = _derive_overall_status(report)
     report.confidence_level = _derive_confidence_level(report)
+
+    json_path = _json_output_path(path, args.output_dir)
+    try:
+        export(report, json_path)
+    except Exception as exc:
+        print(f"[WARN] Could not write JSON report: {exc}", file=sys.stderr)
+        json_path = None
+
     print(format_report(report))
     sys.exit(_exit_code(report))

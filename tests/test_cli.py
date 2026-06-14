@@ -102,17 +102,16 @@ def test_schema_critical_urdf_exits_2(monkeypatch, tmp_path):
 
 def test_exit_code_mapping():
     from urdf_validator_main.cli import _exit_code
-    from urdf_validator_main.report.models import ValidationReport, SchemaReport
+    from urdf_validator_main.report.models import ValidationReport
 
-    def _report(status):
+    def _report(overall_status):
         r = ValidationReport()
-        r.schema.status = status
+        r.overall_status = overall_status
         return r
 
     assert _exit_code(_report("PASS")) == 0
-    assert _exit_code(_report("INFO")) == 0
     assert _exit_code(_report("WARN")) == 1
-    assert _exit_code(_report("CRITICAL")) == 2
+    assert _exit_code(_report("FAIL")) == 2
     assert _exit_code(_report("UNKNOWN")) == 2
 
 
@@ -200,3 +199,94 @@ def test_pose_zero_no_stderr_warning(monkeypatch, tmp_path, capsys):
     _run(monkeypatch, [str(urdf), "--pose", "zero"])
     err = capsys.readouterr().err
     assert "not yet supported" not in err
+
+
+# ---------------------------------------------------------------------------
+# --task flag parsing
+# ---------------------------------------------------------------------------
+
+def test_task_flag_not_present_by_default():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf"])
+    assert args.task is None
+
+
+def test_task_pick_from_table_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--task", "pick_from_table"])
+    assert args.task == "pick_from_table"
+
+
+def test_task_pick_from_ground_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--task", "pick_from_ground"])
+    assert args.task == "pick_from_ground"
+
+
+def test_task_push_button_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--task", "push_button"])
+    assert args.task == "push_button"
+
+
+def test_task_custom_with_height_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--task", "custom", "--height", "0.9"])
+    assert args.task == "custom"
+    assert args.height == pytest.approx(0.9)
+
+
+def test_task_custom_without_height_exits_2():
+    from urdf_validator_main.cli import parse_args
+    with pytest.raises(SystemExit) as exc:
+        parse_args(["robot.urdf", "--task", "custom"])
+    assert exc.value.code == 2
+
+
+def test_task_invalid_exits_2():
+    from urdf_validator_main.cli import parse_args
+    with pytest.raises(SystemExit):
+        parse_args(["robot.urdf", "--task", "fly_to_moon"])
+
+
+# ---------------------------------------------------------------------------
+# --output-dir writes JSON file
+# ---------------------------------------------------------------------------
+
+def test_output_dir_writes_json_file(monkeypatch, tmp_path):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    out_dir = tmp_path / "reports"
+    out_dir.mkdir()
+    _run(monkeypatch, [str(urdf), "--output-dir", str(out_dir)])
+    files = list(out_dir.glob("*.json"))
+    assert len(files) == 1
+    assert files[0].name == "minimal_validation.json"
+
+
+def test_default_output_writes_json_alongside_urdf(monkeypatch, tmp_path):
+    urdf = tmp_path / "myrobot.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    _run(monkeypatch, [str(urdf)])
+    expected = tmp_path / "myrobot_validation.json"
+    assert expected.exists()
+
+
+def test_output_json_is_valid_json(monkeypatch, tmp_path):
+    import json
+    urdf = tmp_path / "bot.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    _run(monkeypatch, [str(urdf)])
+    json_file = tmp_path / "bot_validation.json"
+    data = json.loads(json_file.read_text())
+    assert "overall_status" in data
+    assert "workspace" in data
+
+
+def test_output_dir_missing_does_not_crash(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    nonexistent = tmp_path / "no_such_dir"
+    code = _run(monkeypatch, [str(urdf), "--output-dir", str(nonexistent)])
+    err = capsys.readouterr().err
+    assert "JSON" in err or code in (0, 1)  # warn but don't crash
