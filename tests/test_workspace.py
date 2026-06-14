@@ -167,6 +167,20 @@ def test_no_crash_on_missing_limits():
     assert report.workspace is not None
 
 
+def test_sentinel_limits_do_not_inflate_reach():
+    # Some URDFs encode "no limit" as ±999999 (e.g. Franka base joints).
+    # Sampling that range verbatim would produce ~500 km reach.
+    robot = ParsedRobot(
+        name="r",
+        links=[_link("base", 0.0), _link("arm", 1.0)],
+        joints=[_joint("j1", "base", "arm", joint_type="prismatic",
+                        axis=[1, 0, 0], lower=-999999.0, upper=999999.0)],
+    )
+    report = _run(robot, n_samples=200)
+    assert report.workspace.status == "PASS"
+    assert report.workspace.max_reach < 10.0
+
+
 def test_exception_in_fk_produces_unknown_not_crash(monkeypatch):
     from urdf_validator_main.checks import workspace as ws_mod
     from urdf_validator_main.physics import arm_chain as ac_mod

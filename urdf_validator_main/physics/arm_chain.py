@@ -10,6 +10,11 @@ from urdf_validator_main.parser.urdf_adapter import ParsedJoint, ParsedRobot
 
 _ACTUATED = {"revolute", "continuous", "prismatic"}
 
+# URDFs often encode "no limit" as ±999999. Cap to physical ranges so
+# Monte Carlo sampling stays sensible.
+_MAX_REVOLUTE_RAD = 2 * math.pi
+_MAX_PRISMATIC_M = 2.0
+
 
 @dataclass
 class ArmChain:
@@ -90,6 +95,8 @@ def build_ikpy_chain(arm: ArmChain):
             translation = None
             lo = joint.limit_lower if joint.limit_lower is not None else -math.pi
             hi = joint.limit_upper if joint.limit_upper is not None else math.pi
+            lo = max(lo, -_MAX_REVOLUTE_RAD)
+            hi = min(hi, _MAX_REVOLUTE_RAD)
             is_active = True
             ikpy_jtype = "revolute"
         elif jtype == "prismatic":
@@ -97,6 +104,8 @@ def build_ikpy_chain(arm: ArmChain):
             translation = list(joint.axis)
             lo = joint.limit_lower if joint.limit_lower is not None else 0.0
             hi = joint.limit_upper if joint.limit_upper is not None else 0.3
+            lo = max(lo, -_MAX_PRISMATIC_M)
+            hi = min(hi, _MAX_PRISMATIC_M)
             is_active = True
             ikpy_jtype = "prismatic"
         else:  # fixed
