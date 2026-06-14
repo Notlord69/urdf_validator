@@ -161,5 +161,5 @@ def main() -> None:
         print(f"[WARN] Could not write JSON report: {exc}", file=sys.stderr)
         json_path = None
 
-    print(format_report(report))
+    print(format_report(report, json_path=json_path))
     sys.exit(_exit_code(report))

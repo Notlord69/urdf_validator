@@ -10,7 +10,7 @@ _RESET = "\033[0m"
 _MIN_WIDTH = 52
 
 
-def format_report(report: ValidationReport) -> str:
+def format_report(report: ValidationReport, json_path: str = None) -> str:
     lines = []
     lines.extend(_header(report))
     lines.extend(_schema_section(report.schema))
@@ -18,7 +18,8 @@ def format_report(report: ValidationReport) -> str:
     lines.extend(_statics_section(report.statics))
     lines.extend(_stability_section(report.stability))
     lines.extend(_workspace_section(report.workspace))
-    lines.extend(_overall_footer(report))
+    lines.extend(_task_section(report.workspace))
+    lines.extend(_overall_footer(report, json_path=json_path))
     return "\n".join(lines)
 
 
@@ -120,7 +121,7 @@ def _statics_section(statics: StaticsReport) -> list:
     return lines
 
 
-def _overall_footer(report: ValidationReport) -> list:
+def _overall_footer(report: ValidationReport, json_path: str = None) -> list:
     status = report.overall_status
     color = {
         "PASS": _GREEN,
@@ -128,7 +129,10 @@ def _overall_footer(report: ValidationReport) -> list:
         "FAIL": _RED,
     }.get(status, "")
     confidence = report.confidence_level
-    return [f"[OVERALL]  {color}{status}{_RESET}  confidence: {confidence}"]
+    lines = [f"[OVERALL]  {color}{status}{_RESET}  confidence: {confidence}"]
+    if json_path:
+        lines.append(f"Full report: {json_path}")
+    return lines
 
 
 def _workspace_section(workspace) -> list:
@@ -148,6 +152,46 @@ def _workspace_section(workspace) -> list:
     ]
     if workspace.reach_from_base is not None:
         lines.append(f"             from base {workspace.reach_from_base:.3f} m")
+    return lines
+
+
+def _task_section(workspace) -> list:
+    if workspace.task is None:
+        return []
+
+    target = workspace.task_target_height_m
+    height_str = f"{target:.2f} m" if target is not None else "?"
+    lines = [f"[TASK]  {workspace.task} ({height_str})"]
+
+    if workspace.task_height_reachable is None:
+        lines.append("        height reachable: UNKNOWN")
+    elif workspace.task_height_reachable:
+        vr = workspace.vertical_reach
+        vr_str = f"{vr:.3f} m" if vr is not None else "?"
+        lines.append(f"        height reachable: {_GREEN}YES{_RESET}  vertical reach {vr_str}")
+    else:
+        vr = workspace.vertical_reach
+        vr_str = f"{vr:.3f} m" if vr is not None else "?"
+        lines.append(f"        height reachable: {_RED}NO{_RESET}   vertical reach {vr_str}")
+
+    if workspace.task_com_stable_during_reach is None:
+        reason = workspace.task_reason or "stability data unavailable"
+        lines.append(
+            f"        COM stability during reach: {_YELLOW}UNKNOWN{_RESET} — {reason}"
+        )
+    elif workspace.task_com_stable_during_reach:
+        shift = workspace.task_com_shift_estimate_m
+        shift_str = f"  shift est. {shift:.3f} m" if shift is not None else ""
+        lines.append(
+            f"        COM stable during reach: {_GREEN}YES{_RESET}{shift_str}  [estimated]"
+        )
+    else:
+        shift = workspace.task_com_shift_estimate_m
+        shift_str = f"  shift est. {shift:.3f} m" if shift is not None else ""
+        lines.append(
+            f"        COM stable during reach: {_YELLOW}WARN{_RESET}{shift_str}  [estimated]"
+        )
+
     return lines
 
 
