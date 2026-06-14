@@ -157,3 +157,62 @@ def test_workspace_section_unknown_without_reason_omitted():
     # workspace defaults: status="UNKNOWN", reason=None
     out = format_report(r)
     assert "[WORKSPACE]" not in out
+
+
+def test_task_section_empty_when_no_task():
+    from urdf_validator_main.report.formatter import _task_section
+    from urdf_validator_main.report.models import WorkspaceReport
+    ws = WorkspaceReport()
+    assert _task_section(ws) == []
+
+
+def test_task_section_shows_reachable():
+    from urdf_validator_main.report.formatter import _task_section
+    from urdf_validator_main.report.models import WorkspaceReport
+    ws = WorkspaceReport(
+        task="pick_from_table",
+        task_target_height_m=0.75,
+        task_height_reachable=True,
+        vertical_reach=1.2,
+        task_com_stable_during_reach=True,
+        task_com_shift_estimate_m=0.05,
+    )
+    lines = _task_section(ws)
+    combined = " ".join(lines)
+    assert "pick_from_table" in combined
+    assert "YES" in combined
+    assert "1.200" in combined
+
+
+def test_task_section_shows_not_reachable():
+    from urdf_validator_main.report.formatter import _task_section
+    from urdf_validator_main.report.models import WorkspaceReport
+    ws = WorkspaceReport(
+        task="push_button",
+        task_target_height_m=1.2,
+        task_height_reachable=False,
+        vertical_reach=0.8,
+        task_com_stable_during_reach=None,
+        task_reason="no wheeled support polygon",
+    )
+    lines = _task_section(ws)
+    combined = " ".join(lines)
+    assert "NO" in combined
+    assert "UNKNOWN" in combined
+
+
+def test_task_section_shows_com_unstable():
+    from urdf_validator_main.report.formatter import _task_section
+    from urdf_validator_main.report.models import WorkspaceReport
+    ws = WorkspaceReport(
+        task="pick_from_table",
+        task_target_height_m=0.75,
+        task_height_reachable=True,
+        vertical_reach=1.0,
+        task_com_stable_during_reach=False,
+        task_com_shift_estimate_m=0.45,
+    )
+    lines = _task_section(ws)
+    combined = " ".join(lines)
+    assert "WARN" in combined
+    assert "0.450" in combined

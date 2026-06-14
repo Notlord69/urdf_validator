@@ -290,3 +290,33 @@ def test_output_dir_missing_does_not_crash(monkeypatch, tmp_path, capsys):
     code = _run(monkeypatch, [str(urdf), "--output-dir", str(nonexistent)])
     err = capsys.readouterr().err
     assert "JSON" in err or code in (0, 1)  # warn but don't crash
+
+
+# ---------------------------------------------------------------------------
+# Terminal output — [TASK] section and JSON footer
+# ---------------------------------------------------------------------------
+
+def test_task_section_appears_in_output(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    _run(monkeypatch, [str(urdf), "--task", "pick_from_table"])
+    out = capsys.readouterr().out
+    assert "[TASK]" in out
+    assert "pick_from_table" in out
+
+
+def test_task_section_absent_without_task_flag(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    _run(monkeypatch, [str(urdf)])
+    out = capsys.readouterr().out
+    assert "[TASK]" not in out
+
+
+def test_full_report_line_in_output(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    _run(monkeypatch, [str(urdf)])
+    out = capsys.readouterr().out
+    assert "Full report:" in out
+    assert "minimal_validation.json" in out
