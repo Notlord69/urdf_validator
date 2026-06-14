@@ -17,6 +17,8 @@ def format_report(report: ValidationReport) -> str:
     lines.extend(_physics_section(report.links))
     lines.extend(_statics_section(report.statics))
     lines.extend(_stability_section(report.stability))
+    lines.extend(_workspace_section(report.workspace))
+    lines.extend(_overall_footer(report))
     return "\n".join(lines)
 
 
@@ -69,10 +71,17 @@ def _statics_section(statics: StaticsReport) -> list:
     if statics.full_body_com is not None:
         x, y, z = statics.full_body_com
         mass_str = f"{statics.total_mass:.3f} kg" if statics.total_mass is not None else "unknown"
+        height_str = f"  height {z:.3f} m" if statics.com_height_above_ground is not None else ""
         lines.append(
-            f"[STATICS]  COM [{x:.3f}, {y:.3f}, {z:.3f}] m  "
+            f"[STATICS]  COM [{x:.3f}, {y:.3f}, {z:.3f}] m{height_str}  "
             f"total mass {mass_str}  ({statics.com_confidence})"
         )
+        if statics.heaviest_link_name is not None and statics.heaviest_link_pct is not None:
+            lines.append(
+                f"           Heaviest: {statics.heaviest_link_name} ({statics.heaviest_link_pct:.1f}%)"
+            )
+        if statics.mass_split_warning is not None:
+            lines.append(f"  {_YELLOW}[WARN]{_RESET}     {statics.mass_split_warning}")
     else:
         lines.append(f"[STATICS]  COM unknown ({statics.com_confidence})")
 
@@ -84,9 +93,15 @@ def _statics_section(statics: StaticsReport) -> list:
         "WARN": _YELLOW,
         "FAIL": _RED,
     }.get(statics.status, "")
-    lines.append(
-        f"[STATICS]  joints: {status_color}{statics.status}{_RESET}"
-    )
+
+    joints_summary = f"[STATICS]  joints: {status_color}{statics.status}{_RESET}"
+    if statics.weakest_joint_name is not None:
+        joints_summary += f"  weakest: {statics.weakest_joint_name}"
+    if statics.payload_capacity_kg is not None:
+        sign = "~" if statics.payload_capacity_kg >= 0 else ""
+        joints_summary += f"  payload cap: {sign}{statics.payload_capacity_kg:.1f} kg"
+    lines.append(joints_summary)
+
     for j in statics.joints:
         if j.status == "FAIL":
             color = _RED
@@ -97,10 +112,39 @@ def _statics_section(statics: StaticsReport) -> list:
         req_str = f"{j.required_torque_gravity:.1f} Nm" if j.required_torque_gravity is not None else "?"
         eff_str = f"{j.declared_effort:.1f} Nm" if j.declared_effort is not None else "undeclared"
         margin_str = f"margin {j.margin:.2f}" if j.margin is not None else "no margin"
+        summary_str = f"  — {j.summary}" if j.summary else ""
         lines.append(
             f"  {j.name:<28}  req {req_str:<10}  declared {eff_str:<14}  "
-            f"{margin_str}  {color}{j.status}{_RESET}"
+            f"{margin_str}  {color}{j.status}{_RESET}{summary_str}"
         )
+    return lines
+
+
+def _overall_footer(report: ValidationReport) -> list:
+    status = report.overall_status
+    color = {
+        "PASS": _GREEN,
+        "WARN": _YELLOW,
+        "FAIL": _RED,
+    }.get(status, "")
+    confidence = report.confidence_level
+    return [f"[OVERALL]  {color}{status}{_RESET}  confidence: {confidence}"]
+
+
+def _workspace_section(workspace) -> list:
+    if workspace.status == "UNKNOWN":
+        if workspace.reason:
+            return [f"[WORKSPACE]  UNKNOWN — {workspace.reason}"]
+        return []
+
+    lines = [
+        f"[WORKSPACE]  max reach {workspace.max_reach:.3f} m  "
+        f"vertical {workspace.vertical_reach:.3f} m  "
+        f"horizontal {workspace.horizontal_reach:.3f} m  "
+        f"({workspace.reach_confidence})"
+    ]
+    if workspace.reach_from_base is not None:
+        lines.append(f"             from base {workspace.reach_from_base:.3f} m")
     return lines
 
 

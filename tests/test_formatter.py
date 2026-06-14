@@ -120,3 +120,40 @@ def test_physics_section_some_missing():
     assert "[PHYSICS]" in result
     assert "missing" in result
     assert "sensor_frame" in result
+
+
+def test_workspace_section_pass_shows_all_metrics():
+    from urdf_validator_main.report.models import ValidationReport
+    from urdf_validator_main.report.formatter import format_report
+    r = ValidationReport()
+    r.workspace.status = "PASS"
+    r.workspace.max_reach = 1.847
+    r.workspace.vertical_reach = 1.623
+    r.workspace.horizontal_reach = 1.791
+    r.workspace.reach_from_base = 2.134
+    r.workspace.reach_confidence = "estimated"
+    out = format_report(r)
+    assert "[WORKSPACE]" in out
+    assert "1.847" in out
+    assert "1.623" in out
+    assert "estimated" in out
+
+
+def test_workspace_section_unknown_with_reason_shows_reason():
+    from urdf_validator_main.report.models import ValidationReport
+    from urdf_validator_main.report.formatter import format_report
+    r = ValidationReport()
+    r.workspace.status = "UNKNOWN"
+    r.workspace.reason = "No arm chain detected"
+    out = format_report(r)
+    assert "[WORKSPACE]" in out
+    assert "No arm chain detected" in out
+
+
+def test_workspace_section_unknown_without_reason_omitted():
+    from urdf_validator_main.report.models import ValidationReport
+    from urdf_validator_main.report.formatter import format_report
+    r = ValidationReport()
+    # workspace defaults: status="UNKNOWN", reason=None
+    out = format_report(r)
+    assert "[WORKSPACE]" not in out
