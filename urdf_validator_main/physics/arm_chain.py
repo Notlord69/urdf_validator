@@ -36,7 +36,9 @@ def detect_arm_chains(parsed: ParsedRobot, max_chains: int = 2) -> List[ArmChain
     for terminal in terminals:
         joints_reversed: List[ParsedJoint] = []
         current = terminal
-        while current in parent_joint_of:
+        visited: set = set()
+        while current in parent_joint_of and current not in visited:
+            visited.add(current)
             j = parent_joint_of[current]
             joints_reversed.append(j)
             current = j.parent

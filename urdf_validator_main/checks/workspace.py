@@ -20,7 +20,10 @@ def _shoulder_world(arm: ArmChain, frames) -> np.ndarray:
             parent_frame = frames.get(j.parent)
             if parent_frame is not None:
                 return parent_frame.T_world[:3, 3].copy()
-    return frames[arm.root_link].T_world[:3, 3].copy()
+    frame = frames.get(arm.root_link)
+    if frame is not None:
+        return frame.T_world[:3, 3].copy()
+    return np.zeros(3)
 
 
 def _sample(chain, active_mask: List[bool], n: int) -> np.ndarray:

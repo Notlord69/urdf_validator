@@ -137,10 +137,13 @@ def _workspace_section(workspace) -> list:
             return [f"[WORKSPACE]  UNKNOWN — {workspace.reason}"]
         return []
 
+    def _m(v):
+        return f"{v:.3f}" if v is not None else "?"
+
     lines = [
-        f"[WORKSPACE]  max reach {workspace.max_reach:.3f} m  "
-        f"vertical {workspace.vertical_reach:.3f} m  "
-        f"horizontal {workspace.horizontal_reach:.3f} m  "
+        f"[WORKSPACE]  max reach {_m(workspace.max_reach)} m  "
+        f"vertical {_m(workspace.vertical_reach)} m  "
+        f"horizontal {_m(workspace.horizontal_reach)} m  "
         f"({workspace.reach_confidence})"
     ]
     if workspace.reach_from_base is not None:

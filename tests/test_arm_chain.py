@@ -1,7 +1,9 @@
 from __future__ import annotations
+import math
 import pytest
+import numpy as np
 from urdf_validator_main.parser.urdf_adapter import ParsedLink, ParsedJoint, ParsedRobot
-from urdf_validator_main.physics.arm_chain import ArmChain, detect_arm_chains
+from urdf_validator_main.physics.arm_chain import ArmChain, build_ikpy_chain, detect_arm_chains
 
 
 def _link(name: str, mass: float = 1.0) -> ParsedLink:
@@ -107,11 +109,6 @@ def test_max_chains_caps_results():
         joints.append(_joint(f"jb{i}", f"arm{i}_0", f"arm{i}_1", joint_type="revolute"))
     robot = ParsedRobot("r", links, joints)
     assert len(detect_arm_chains(robot, max_chains=2)) == 2
-
-
-import math
-import numpy as np
-from urdf_validator_main.physics.arm_chain import build_ikpy_chain
 
 
 def test_build_chain_single_revolute_active_mask():

@@ -165,3 +165,23 @@ def test_no_crash_on_missing_limits():
     )
     report = _run(robot, n_samples=100)
     assert report.workspace is not None
+
+
+def test_exception_in_fk_produces_unknown_not_crash(monkeypatch):
+    from urdf_validator_main.checks import workspace as ws_mod
+    from urdf_validator_main.physics import arm_chain as ac_mod
+
+    def _bad_build(arm):
+        raise RuntimeError("simulated ikpy failure")
+
+    monkeypatch.setattr(ws_mod, "build_ikpy_chain", _bad_build)
+
+    robot = ParsedRobot(
+        name="r",
+        links=[_link("base"), _link("arm")],
+        joints=[_joint("j1", "base", "arm", joint_type="revolute",
+                        axis=[0, 1, 0], lower=-3.14, upper=3.14)],
+    )
+    report = _run(robot, n_samples=100)
+    assert report.workspace.status == "UNKNOWN"
+    assert report.workspace.reason == "Workspace computation failed"
