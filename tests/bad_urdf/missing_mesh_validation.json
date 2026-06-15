@@ -2,7 +2,7 @@
   "urdf_path": "/home/notlord/ros2_ws/urdf_validator/tests/bad_urdf/missing_mesh.urdf",
   "robot_name": "mesh_bot",
   "robot_type": "unknown",
-  "timestamp": "2026-06-14T15:23:36.046027+00:00",
+  "timestamp": "2026-06-15T04:33:19.340108+00:00",
   "validator_version": "0.1.0",
   "schema": {
     "status": "PASS",
