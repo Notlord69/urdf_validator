@@ -342,3 +342,82 @@ def test_formatter_silent_when_unknown_has_no_reason():
     # manually leave stability as default (UNKNOWN, reason=None)
     output = format_report(report)
     assert "[STABILITY]" not in output
+
+
+# ---------------------------------------------------------------------------
+# Geometry-based contact detection (v0.5) — TurtleBot3-like topology
+# ---------------------------------------------------------------------------
+
+def test_turtlebot3_topology_gives_real_status():
+    """2 named wheel links + 1 caster_link (sphere) must produce PASS or FAIL, not UNKNOWN.
+
+    Wheel positions: left=(1.0, 0.5), right=(-1.0, 0.5).
+    Caster position: (0.0, -1.0).
+    COM at (0.0, 0.0) is inside the triangle → expect PASS.
+    """
+    links = [
+        ParsedLink(
+            name="base_link", mass=5.0,
+            inertia_3x3=np.eye(3) * 0.1,
+            joint_type_incoming=None,
+            visual_geometry_type=None,
+            collision_geometry_type=None,
+            collision_geometry_dims=None,
+        ),
+        ParsedLink(
+            name="wheel_left", mass=0.5,
+            inertia_3x3=np.eye(3) * 0.001,
+            joint_type_incoming="continuous",
+            visual_geometry_type=None,
+            collision_geometry_type="cylinder",
+            collision_geometry_dims=[0.3, 0.1],
+        ),
+        ParsedLink(
+            name="wheel_right", mass=0.5,
+            inertia_3x3=np.eye(3) * 0.001,
+            joint_type_incoming="continuous",
+            visual_geometry_type=None,
+            collision_geometry_type="cylinder",
+            collision_geometry_dims=[0.3, 0.1],
+        ),
+        ParsedLink(
+            name="caster_link", mass=0.1,
+            inertia_3x3=np.eye(3) * 0.0001,
+            joint_type_incoming="fixed",
+            visual_geometry_type=None,
+            collision_geometry_type="sphere",
+            collision_geometry_dims=[0.05],
+        ),
+    ]
+    joints = [
+        ParsedJoint(
+            name="j_left", joint_type="continuous",
+            parent="base_link", child="wheel_left",
+            limit_lower=None, limit_upper=None,
+            limit_effort=None, limit_velocity=None,
+            origin_xyz=[ 1.0,  0.5, 0.3], origin_rpy=[0.0, 0.0, 0.0],
+        ),
+        ParsedJoint(
+            name="j_right", joint_type="continuous",
+            parent="base_link", child="wheel_right",
+            limit_lower=None, limit_upper=None,
+            limit_effort=None, limit_velocity=None,
+            origin_xyz=[-1.0,  0.5, 0.3], origin_rpy=[0.0, 0.0, 0.0],
+        ),
+        ParsedJoint(
+            name="j_caster", joint_type="fixed",
+            parent="base_link", child="caster_link",
+            limit_lower=None, limit_upper=None,
+            limit_effort=None, limit_velocity=None,
+            origin_xyz=[ 0.0, -1.0, 0.05], origin_rpy=[0.0, 0.0, 0.0],
+        ),
+    ]
+    robot = ParsedRobot(name="turtlebot3_like", links=links, joints=joints)
+    report = _report_with_com([0.0, 0.0, 0.3])
+    stability.run(robot, report)
+    assert report.stability.status != "UNKNOWN", (
+        f"Expected real status, got UNKNOWN: {report.stability.reason}"
+    )
+    assert report.stability.status == "PASS"
+    assert report.stability.stable is True
+    assert report.stability.margin_mm > 0

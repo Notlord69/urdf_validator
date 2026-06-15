@@ -137,3 +137,88 @@ def test_wheel_case_insensitive_name_match():
     robot = ParsedRobot(name="upper", links=links, joints=joints)
     poly = extract_wheeled_polygon(robot, walk(robot))
     assert poly is not None and poly.geom_type == "Polygon"
+
+
+# ---------------------------------------------------------------------------
+# Geometry-based contact detection (v0.5)
+# ---------------------------------------------------------------------------
+
+def _link_geom(name: str, geom_type: str, dims: list) -> ParsedLink:
+    """Construct a ParsedLink with explicit collision geometry, no name-derived defaults."""
+    return ParsedLink(
+        name=name,
+        mass=1.0,
+        inertia_3x3=np.eye(3) * 0.01,
+        joint_type_incoming=None,
+        visual_geometry_type=None,
+        collision_geometry_type=geom_type,
+        collision_geometry_dims=dims,
+    )
+
+
+def test_geom_fallback_cylinder_adds_third_contact():
+    """Unnamed cylinder link with r/L > 0.3 supplements 2 named wheel links → valid polygon."""
+    links = [
+        _link("base_link"),
+        _link("wheel_left",  radius=0.3),
+        _link("wheel_right", radius=0.3),
+        _link_geom("roller_body", "cylinder", [0.15, 0.04]),  # r/L = 3.75 > 0.3
+    ]
+    joints = [
+        _fixed_joint("j_l",  "base_link", "wheel_left",   [ 1.0,  0.5, 0.3]),
+        _fixed_joint("j_r",  "base_link", "wheel_right",  [-1.0,  0.5, 0.3]),
+        _fixed_joint("j_ro", "base_link", "roller_body",  [ 0.0, -1.0, 0.15]),
+    ]
+    robot = ParsedRobot(name="two_wheel_plus_roller", links=links, joints=joints)
+    frames = walk(robot)
+    from urdf_validator_main.physics.support_polygon import collect_wheel_contacts
+    pts = collect_wheel_contacts(robot, frames)
+    assert len(pts) == 3
+    poly = extract_wheeled_polygon(robot, frames)
+    assert poly is not None
+    assert poly.geom_type == "Polygon"
+
+
+def test_caster_sphere_adds_third_contact():
+    """Link named 'caster_link' with sphere collision geometry supplements 2 named wheels → valid polygon."""
+    links = [
+        _link("base_link"),
+        _link("wheel_left",  radius=0.3),
+        _link("wheel_right", radius=0.3),
+        _link_geom("caster_link", "sphere", [0.05]),
+    ]
+    joints = [
+        _fixed_joint("j_l", "base_link", "wheel_left",  [ 1.0,  0.5, 0.3]),
+        _fixed_joint("j_r", "base_link", "wheel_right", [-1.0,  0.5, 0.3]),
+        _fixed_joint("j_c", "base_link", "caster_link", [ 0.0, -1.0, 0.05]),
+    ]
+    robot = ParsedRobot(name="two_wheel_plus_caster_sphere", links=links, joints=joints)
+    frames = walk(robot)
+    from urdf_validator_main.physics.support_polygon import collect_wheel_contacts
+    pts = collect_wheel_contacts(robot, frames)
+    assert len(pts) == 3
+    poly = extract_wheeled_polygon(robot, frames)
+    assert poly is not None
+    assert poly.geom_type == "Polygon"
+
+
+def test_geom_fallback_rejects_low_ratio_cylinder():
+    """Unnamed cylinder with r/L <= 0.3 (rod-like) must NOT be added as a contact point."""
+    links = [
+        _link("base_link"),
+        _link("wheel_left",  radius=0.3),
+        _link("wheel_right", radius=0.3),
+        _link_geom("thin_rod", "cylinder", [0.02, 1.0]),  # r/L = 0.02 < 0.3
+    ]
+    joints = [
+        _fixed_joint("j_l",  "base_link", "wheel_left",  [ 1.0, 0.0, 0.3]),
+        _fixed_joint("j_r",  "base_link", "wheel_right", [-1.0, 0.0, 0.3]),
+        _fixed_joint("j_tr", "base_link", "thin_rod",    [ 0.0, 0.0, 0.5]),
+    ]
+    robot = ParsedRobot(name="two_wheel_plus_rod", links=links, joints=joints)
+    frames = walk(robot)
+    from urdf_validator_main.physics.support_polygon import collect_wheel_contacts
+    pts = collect_wheel_contacts(robot, frames)
+    assert len(pts) == 2
+    poly = extract_wheeled_polygon(robot, frames)
+    assert poly is None

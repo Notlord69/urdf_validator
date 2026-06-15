@@ -16,8 +16,18 @@ def collect_wheel_contacts(
     parsed: ParsedRobot,
     frames: Dict[str, LinkFrame],
 ) -> List[tuple]:
-    """Return (x, y) contact points for every link with 'wheel' in its name."""
+    """Return (x, y) ground-contact points for wheel and caster links.
+
+    Three passes, in priority order:
+      1. Name match  — any link with 'wheel' in its name (case-insensitive).
+      2. Geometry fallback — unnamed-as-wheel cylinder links with r/L > 0.3.
+      3. Caster inclusion — links with 'caster' in name and cylinder/sphere geometry.
+    A seen-set prevents double-counting across passes.
+    """
     pts: List[tuple] = []
+    seen: set = set()
+
+    # Pass 1 — name match
     for link in parsed.links:
         if "wheel" not in link.name.lower():
             continue
@@ -26,6 +36,42 @@ def collect_wheel_contacts(
             continue
         center = frame.T_world[:3, 3]
         pts.append((float(center[0]), float(center[1])))
+        seen.add(link.name)
+
+    # Pass 2 — cylindrical geometry fallback (r/L > 0.3)
+    for link in parsed.links:
+        if link.name in seen:
+            continue
+        if link.collision_geometry_type != "cylinder":
+            continue
+        dims = link.collision_geometry_dims
+        if dims is None or len(dims) < 2:
+            continue
+        radius, length = dims[0], dims[1]
+        if length <= 0 or radius / length <= 0.3:
+            continue
+        frame = frames.get(link.name)
+        if frame is None:
+            continue
+        center = frame.T_world[:3, 3]
+        pts.append((float(center[0]), float(center[1])))
+        seen.add(link.name)
+
+    # Pass 3 — caster inclusion
+    for link in parsed.links:
+        if link.name in seen:
+            continue
+        if "caster" not in link.name.lower():
+            continue
+        if link.collision_geometry_type not in ("cylinder", "sphere"):
+            continue
+        frame = frames.get(link.name)
+        if frame is None:
+            continue
+        center = frame.T_world[:3, 3]
+        pts.append((float(center[0]), float(center[1])))
+        seen.add(link.name)
+
     return pts
 
 
