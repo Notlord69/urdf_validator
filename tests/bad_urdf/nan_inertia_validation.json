@@ -1,0 +1,103 @@
+{
+  "urdf_path": "/home/notlord/ros2_ws/urdf_validator/tests/bad_urdf/nan_inertia.urdf",
+  "robot_name": "nan_bot",
+  "robot_type": "unknown",
+  "timestamp": "2026-06-14T15:23:36.049569+00:00",
+  "validator_version": "0.1.0",
+  "schema": {
+    "status": "WARN",
+    "critical_issues": [],
+    "warnings": [
+      "Link 'arm_link' has non-finite inertia values (NaN/Inf) \u2014 tensor is malformed"
+    ],
+    "infos": []
+  },
+  "links": [
+    {
+      "name": "base_link",
+      "mass": null,
+      "mass_confidence": "missing",
+      "inertia_tensor": null,
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "arm_link",
+      "mass": 1.0,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        NaN,
+        0.0,
+        0.0,
+        0.0,
+        0.1,
+        0.0,
+        0.0,
+        0.0,
+        0.1
+      ],
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    }
+  ],
+  "statics": {
+    "joints": [
+      {
+        "name": "j1",
+        "required_torque_gravity": 0.0,
+        "torque_confidence": "estimated",
+        "declared_effort": 10.0,
+        "margin": null,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      }
+    ],
+    "full_body_com": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "com_confidence": "estimated",
+    "total_mass": 1.0,
+    "mass_confidence": "estimated",
+    "status": "PASS",
+    "com_height_above_ground": null,
+    "heaviest_link_name": null,
+    "heaviest_link_pct": null,
+    "mass_split_warning": null,
+    "weakest_joint_name": null,
+    "payload_capacity_kg": null
+  },
+  "stability": {
+    "stable": null,
+    "margin_mm": null,
+    "tip_direction": null,
+    "com_height_ratio": null,
+    "com_height_ratio_confidence": "missing",
+    "status": "UNKNOWN",
+    "reason": "robot type 'unknown' \u2014 stability only computed for wheeled robots"
+  },
+  "workspace": {
+    "max_reach": 0.0,
+    "reach_confidence": "estimated",
+    "vertical_reach": 0.0,
+    "horizontal_reach": 0.0,
+    "status": "PASS",
+    "reach_from_base": 0.0,
+    "reason": null,
+    "task": null,
+    "task_target_height_m": null,
+    "task_height_reachable": null,
+    "task_com_stable_during_reach": null,
+    "task_com_shift_estimate_m": null,
+    "task_reason": null
+  },
+  "overall_status": "WARN",
+  "critical_issues": [],
+  "warnings": [],
+  "unknowns": [],
+  "confidence_level": "MEDIUM"
+}

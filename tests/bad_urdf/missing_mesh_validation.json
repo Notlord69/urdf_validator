@@ -1,0 +1,69 @@
+{
+  "urdf_path": "/home/notlord/ros2_ws/urdf_validator/tests/bad_urdf/missing_mesh.urdf",
+  "robot_name": "mesh_bot",
+  "robot_type": "unknown",
+  "timestamp": "2026-06-14T15:23:36.046027+00:00",
+  "validator_version": "0.1.0",
+  "schema": {
+    "status": "PASS",
+    "critical_issues": [],
+    "warnings": [],
+    "infos": []
+  },
+  "links": [
+    {
+      "name": "base_link",
+      "mass": null,
+      "mass_confidence": "missing",
+      "inertia_tensor": null,
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    }
+  ],
+  "statics": {
+    "joints": [],
+    "full_body_com": null,
+    "com_confidence": "missing",
+    "total_mass": null,
+    "mass_confidence": "missing",
+    "status": "UNKNOWN",
+    "com_height_above_ground": null,
+    "heaviest_link_name": null,
+    "heaviest_link_pct": null,
+    "mass_split_warning": null,
+    "weakest_joint_name": null,
+    "payload_capacity_kg": null
+  },
+  "stability": {
+    "stable": null,
+    "margin_mm": null,
+    "tip_direction": null,
+    "com_height_ratio": null,
+    "com_height_ratio_confidence": "missing",
+    "status": "UNKNOWN",
+    "reason": "robot type 'unknown' \u2014 stability only computed for wheeled robots"
+  },
+  "workspace": {
+    "max_reach": null,
+    "reach_confidence": "missing",
+    "vertical_reach": null,
+    "horizontal_reach": null,
+    "status": "UNKNOWN",
+    "reach_from_base": null,
+    "reason": "No arm chain detected (robot may be wheeled or legged only)",
+    "task": null,
+    "task_target_height_m": null,
+    "task_height_reachable": null,
+    "task_com_stable_during_reach": null,
+    "task_com_shift_estimate_m": null,
+    "task_reason": null
+  },
+  "overall_status": "PASS",
+  "critical_issues": [],
+  "warnings": [],
+  "unknowns": [
+    "Workspace: no arm chain detected \u2014 robot may have no manipulator"
+  ],
+  "confidence_level": "LOW"
+}

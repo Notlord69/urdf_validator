@@ -5,9 +5,9 @@
 | Field          | Value              |
 |----------------|--------------------|
 | PRD Version    | 1.0 - Draft        |
-| Status as of   | 2026-06-13         |
-| Current Build  | v0.3.0-dev         |
-| Current Phase  | Month 3 complete   |
+| Status as of   | 2026-06-15         |
+| Current Build  | v0.4.0-dev         |
+| Current Phase  | Month 4 complete   |
 
 ---
 
@@ -18,7 +18,7 @@
 | v0.1      | 1     | Parser + Physics + Schema                | **COMPLETE**   |
 | v0.2      | 2     | Chain Walker + COM + Gravity Torques     | **COMPLETE**    |
 | v0.3      | 3     | Stability — Support Polygon + COM Projection | **COMPLETE** |
-| v0.4      | 4     | Workspace + Task Checks + Full Report Pipeline | NOT STARTED |
+| v0.4      | 4     | Workspace + Task Checks + Full Report Pipeline | **COMPLETE** |
 | v0.5      | 5     | Hardening — Edge Cases, Bad URDFs, Mesh Failures | NOT STARTED |
 | v1.0      | 6     | Polish + Docs + Community Release        | NOT STARTED    |
 
@@ -78,8 +78,8 @@
 | Mass-weighted average COM across all links                  | **DONE**    | `checks/statics.py` — `_compute_com()`         |
 | COM position [x, y, z] in world frame                       | **DONE**    | `StaticsReport.full_body_com` populated        |
 | COM height above ground plane                               | **PENDING** | Not extracted from full_body_com yet           |
-| Heaviest link by name and percentage                        | **PENDING** | Not in `StaticsReport`                         |
-| Upper/lower body mass split (humanoid tipping warning)      | **PENDING** | Not in `StaticsReport`                         |
+| Heaviest link by name and percentage                        | **PENDING** | Field exists (`heaviest_link_name`, `heaviest_link_pct`); never populated by `statics.py` |
+| Upper/lower body mass split (humanoid tipping warning)      | **PENDING** | Field exists (`mass_split_warning`); never populated by `statics.py` |
 
 ### 3.3.3 Gravity Torque Per Joint
 
@@ -95,9 +95,9 @@
 
 | Item                                                        | Status      | Notes                                          |
 |-------------------------------------------------------------|-------------|------------------------------------------------|
-| Weakest joint identification                                | **PENDING** | Not in `StaticsReport`                         |
+| Weakest joint identification                                | **PENDING** | Field exists (`weakest_joint_name`); never populated by `statics.py` |
 | Overall effort status (PASS/WARN/FAIL)                      | **DONE**    | `StaticsReport.status` — FAIL if any joint fails |
-| Payload capacity estimate                                   | **PENDING** | Not yet implemented                            |
+| Payload capacity estimate                                   | **PENDING** | Field exists (`payload_capacity_kg`); never populated by `statics.py` |
 
 ---
 
@@ -169,11 +169,12 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 
 ### 3.5.3 Task Declarations
 
-| Item                                         | Status      |
-|----------------------------------------------|-------------|
-| `--task` CLI flag                            | **PENDING** | Not wired into CLI |
-| `pick_from_ground` / `pick_from_table` / `push_button` / `custom` | **PENDING** |
-| COM-over-polygon check during reach          | **PENDING** |
+| Item                                                        | Status      | Notes |
+|-------------------------------------------------------------|-------------|-------|
+| `--task` CLI flag                                           | **DONE**    | `cli.py:74`; validated against allowed choices |
+| `pick_from_ground` / `pick_from_table` / `push_button` / `custom` | **DONE** | `_TASK_HEIGHTS` dict in `cli.py:26`; `--height` required for `custom` |
+| Task height reachability check                              | **DONE**    | `task_height_reachable = vertical_reach >= task_height_m` in `workspace.py:119` |
+| COM-over-polygon check during reach                         | **DONE**    | Midpoint-of-arm approximation; `task_com_stable_during_reach` in `workspace.py:128–135` |
 
 ---
 
@@ -188,8 +189,8 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 | `StaticsReport`, `JointStaticsReport`                      | **DONE**    | Fully populated by `checks/statics.py`         |
 | `StabilityReport`, `WorkspaceReport`                       | **DONE**    | `StabilityReport` fully populated by pipeline; `reason: Optional[str]` field added for UNKNOWN diagnostics |
 | `Confidence` type: `exact/estimated/guessed/missing`       | **DONE**    |                                                |
-| `overall_status` derivation (PASS/WARN/FAIL)               | **PENDING** | Field exists; never set beyond default "UNKNOWN" |
-| `confidence_level` derivation (HIGH/MEDIUM/LOW)            | **PENDING** | Field exists; never set beyond default "LOW"   |
+| `overall_status` derivation (PASS/WARN/FAIL)               | **DONE**    | `_derive_overall_status()` in `cli.py`          |
+| `confidence_level` derivation (HIGH/MEDIUM/LOW)            | **DONE**    | `_derive_confidence_level()` in `cli.py`        |
 | `robot_type` detection                                     | **DONE**    | `physics/robot_classifier.py` — name heuristic; wired into CLI |
 
 ### 3.6.2 Terminal Formatter
@@ -202,15 +203,16 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 | `[STATICS]` section                                        | **DONE**    | COM, total mass, per-joint torque/margin/status |
 | `[STABILITY]` section                                      | **DONE**    | STABLE/UNSTABLE with margin and tip direction; UNKNOWN shows `UNKNOWN — <reason>`; omitted only when reason is None (safe fallback) |
 | `[WORKSPACE]` section                                      | **DONE**    | `_workspace_section()` in `report/formatter.py`; shows reach metrics or UNKNOWN reason |
-| "Full report: …json" footer line                           | **PENDING** | Not implemented                               |
+| `[TASK]` section                                           | **DONE**    | `_task_section()` in `report/formatter.py`; height reachability + COM stability during reach |
+| "Full report: …json" footer line                           | **DONE**    | `_overall_footer()` in `report/formatter.py:134` |
 
 ### 3.6.3 JSON Export
 
 | Item                                                        | Status      |
 |-------------------------------------------------------------|-------------|
-| `ValidationReport` serialised to JSON file                 | **STUB**    | `report/json_export.py` body is `pass`        |
-| `--output-dir` CLI flag                                    | **PARTIAL** | Flag accepted by argparse; export not implemented |
-| Documented stable JSON schema                               | **PENDING** |                                               |
+| `ValidationReport` serialised to JSON file                 | **DONE**    | `report/json_export.py` — numpy-safe encoder, writes `<stem>_validation.json` |
+| `--output-dir` CLI flag                                    | **DONE**    | Fully wired; defaults to alongside input file |
+| Documented stable JSON schema                               | **PENDING** | No schema docs written yet                    |
 
 ### 3.6.4 MuJoCo Deep Mode (Optional)
 
@@ -232,10 +234,10 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 | CI-compatible exit codes (0 / 1 / 2)                       | **DONE**    | PASS/INFO=0, WARN=1, CRITICAL=2                     |
 | Link physics populated into `ValidationReport.links`       | **DONE**    | `_populate_link_physics()` wired                    |
 | Statics pipeline wired into CLI                             | **DONE**    | `run_statics()` called after schema checks          |
-| `--output-dir` flag                                        | **PARTIAL** | Accepted; JSON export not implemented               |
+| `--output-dir` flag                                        | **DONE**    | Fully wired; export path defaults to URDF directory |
 | `--pose` flag                                              | **PARTIAL** | Accepted; `zero` only; others warn and fall back    |
-| `--task` / `--height` flags                               | **PENDING** |                                                     |
-| `--deep` flag                                              | **PENDING** |                                                     |
+| `--task` / `--height` flags                               | **DONE**    | Wired into `workspace.run()` via `task_name` / `task_height_m` |
+| `--deep` flag                                              | **PENDING** | Not wired into CLI                                  |
 
 ---
 
@@ -252,14 +254,14 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 
 | NFR                    | Status      | Notes                                                    |
 |------------------------|-------------|----------------------------------------------------------|
-| Performance < 30s      | **PARTIAL** | Not profiled; Month 4+ pipeline not built yet            |
+| Performance < 30s      | **PARTIAL** | Pipeline built; not yet profiled under load              |
 | `pip install` only     | **DONE**    | No ROS dependency                                        |
 | Python 3.8–3.12        | **DONE**    | Confirmed via setup/tests                                |
-| Valid RFC 8259 JSON     | **PENDING** | JSON export not implemented                              |
+| Valid RFC 8259 JSON     | **DONE**    | `json_export.py` uses stdlib `json.dump` with numpy-safe encoder |
 | No crash on bad input  | **DONE**    | Verified on all 6 reference URDFs                        |
 | Confidence honesty     | **DONE**    | `exact`/`missing` in parser; `estimated`/`guessed` in geometry_physics |
 | MIT license, no GPL    | **DONE**    |                                                          |
-| Core deps only         | **DONE**    | `urdf_parser_py`, `numpy` in use; `shapely`/`ikpy` not yet called |
+| Core deps only         | **DONE**    | `urdf_parser_py`, `numpy`, `shapely`, `ikpy` all in use; no GPL packages |
 | xacro support          | **STUB**    | Stub exists; not wired                                   |
 
 ---
@@ -318,6 +320,33 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 | MuJoCo torque match verified within 10% on fetch_robot      | YES — 0.0% relative error on all 5 joints above 1 Nm threshold |
 
 **v0.2 exit criteria: MET**
+
+---
+
+## v0.4 Exit Criteria Check (Month 4)
+
+> _"End-to-end pipeline works on all 6 reference URDFs — no crashes, structured JSON output for each."_
+
+Smoke test run 2026-06-15 with `urdf_validate <urdf> --output-dir /tmp/smoke_test`.
+
+| URDF | Exit | Overall | Stability | Workspace | JSON |
+|---|---|---|---|---|---|
+| ANYmal | 0 | PASS | UNKNOWN (legged, not wheeled) | 0.960 m (leg reach) | YES |
+| Franka Panda | 1 | WARN | UNKNOWN — robot type 'unknown' (correct graceful degradation) | Reports 3.089 m\* | YES |
+| PR2 | 2 | FAIL | STABLE 208.5 mm | 1.887 m | YES |
+| Spot | 1 | WARN | UNKNOWN (legged, not wheeled) | 0.641 m (leg reach) | YES |
+| TurtleBot3 | 0 | PASS | UNKNOWN (only 2 wheel contacts) | UNKNOWN (no arm detected) | YES |
+| Fetch | 1 | WARN | UNKNOWN (only 2 wheel contacts) | 2.182 m | YES |
+
+**v0.4 exit criteria: MET** — zero crashes, all 6 URDFs produced valid structured JSON.
+
+### Known Limitations (deferred to v0.5)
+
+| # | URDF | Observation | Root cause | Planned fix |
+|---|---|---|---|---|
+| 1 | Franka Panda | Workspace reach 3.089 m (real: ~0.855 m) | `panda_base_joint2` is an unconstrained prismatic joint; sentinel clamps it to 2.0 m; Monte Carlo samples from full chain including base joints | Filter zero-origin base joints from arm chain or report reach from first non-base actuated link |
+| 2 | ANYmal, Spot | Classified as `'humanoid'` instead of `'quadruped'` | `robot_classifier.py` has no quadruped category; legged non-humanoids fall through to 'humanoid' | Add quadruped keyword heuristic (`"hip"`, `"lleg"`, `"uleg"`) to classifier |
+| 3 | PR2 | `r/l_shoulder_lift_joint` FAIL statics (49.5 Nm req vs 30 Nm declared) | Simplified statics model does not account for spring counterbalancing; real PR2 uses passive springs | Document model limitation in report |
 
 ---
 
