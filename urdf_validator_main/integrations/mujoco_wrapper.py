@@ -126,5 +126,57 @@ def get_joint_gravity_torques(urdf_path: str) -> Dict[str, float]:
         return {}
 
 
-def run_deep(report) -> None:
-    pass
+def run_deep(report, urdf_path: str) -> None:
+    """Static-pose MuJoCo validation: cross-checks gravity torques and COM.
+
+    Updates joint torque_confidence to "simulated" for joints that MuJoCo
+    validates.  Appends a warning for any joint or COM value that deviates
+    more than 15% from the MuJoCo reference.  Sets report.stability.deep_validated
+    to True when the pass completes without errors.
+    """
+    _TORQUE_THRESHOLD_NM = 1.0
+    _TOLERANCE = 0.15
+
+    try:
+        import mujoco  # noqa: F401 — presence check
+    except ImportError:
+        report.warnings.append("--deep skipped: MuJoCo is not installed (pip install mujoco)")
+        return
+
+    try:
+        mj_torques = get_joint_gravity_torques(urdf_path)
+        if not mj_torques:
+            report.warnings.append("--deep: MuJoCo returned no joint torques — URDF may not load cleanly")
+            return
+
+        for joint_report in report.statics.joints:
+            mj_t = mj_torques.get(joint_report.name)
+            if mj_t is None:
+                continue
+            joint_report.torque_confidence = "simulated"
+            our_t = joint_report.required_torque_gravity
+            if our_t is not None and mj_t >= _TORQUE_THRESHOLD_NM:
+                rel_err = abs(our_t - mj_t) / mj_t
+                if rel_err > _TOLERANCE:
+                    report.warnings.append(
+                        f"[SIM] {joint_report.name}: ours={our_t:.2f} Nm "
+                        f"MuJoCo={mj_t:.2f} Nm ({rel_err * 100:.0f}% diff)"
+                    )
+
+        mj_com = get_com(urdf_path)
+        if mj_com is not None and report.statics.full_body_com is not None:
+            import numpy as np
+            our_com = np.array(report.statics.full_body_com)
+            dist = float(np.linalg.norm(our_com - mj_com))
+            report.statics.com_confidence = "simulated"
+            if dist > 0.05:
+                report.warnings.append(
+                    f"[SIM] COM: ours={our_com.round(3).tolist()} "
+                    f"MuJoCo={mj_com.round(3).tolist()} "
+                    f"dist={dist * 100:.1f} cm"
+                )
+
+        report.stability.deep_validated = True
+
+    except Exception as exc:
+        report.warnings.append(f"--deep: MuJoCo validation failed — {exc}")

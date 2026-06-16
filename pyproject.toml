@@ -13,6 +13,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+xacro = ["xacro"]
 full = ["ikpy", "xacro"]
 mujoco = ["mujoco"]
 dev = ["pytest"]

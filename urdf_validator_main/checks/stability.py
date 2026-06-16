@@ -9,7 +9,41 @@ from urdf_validator_main.physics.robot_classifier import detect_robot_type
 from urdf_validator_main.physics.support_polygon import collect_wheel_contacts, extract_wheeled_polygon
 from urdf_validator_main.report.models import ValidationReport
 
+import math
+
 _COMPASS = ["E", "NE", "N", "NW", "W", "SW", "S", "SE"]
+
+_COM_RATIO_CLASSES = [
+    (0.5, "very_stable"),
+    (1.0, "stable"),
+    (2.0, "manageable"),
+    (3.0, "requires_active_balancing"),
+    (float("inf"), "will_fall"),
+]
+
+
+def _classify_com_height_ratio(ratio: float) -> str:
+    for threshold, label in _COM_RATIO_CLASSES:
+        if ratio < threshold:
+            return label
+    return "will_fall"
+
+
+def _compute_com_height_ratio(polygon, com_height: float) -> None:
+    """Return (ratio, class, tipping_angle_deg) or (None, None, None) on bad data."""
+    if com_height <= 0.0:
+        return None, None, None
+    try:
+        minx, miny, maxx, maxy = polygon.bounds
+        support_width = min(maxx - minx, maxy - miny)
+        if support_width <= 0.0:
+            return None, None, None
+        ratio = com_height / support_width
+        cls = _classify_com_height_ratio(ratio)
+        tip_angle = math.degrees(math.atan2(support_width / 2.0, com_height))
+        return ratio, cls, tip_angle
+    except Exception:
+        return None, None, None
 
 
 def _cardinal_direction(from_x: float, from_y: float, to_x: float, to_y: float) -> str:
@@ -25,7 +59,11 @@ def _unknown(report: ValidationReport, reason: str) -> None:
     report.stability.reason = reason
 
 
-def run(parsed: ParsedRobot, report: ValidationReport) -> None:
+def run(
+    parsed: ParsedRobot,
+    report: ValidationReport,
+    joint_angles=None,
+) -> None:
     try:
         robot_type = detect_robot_type(parsed)
 
@@ -33,7 +71,7 @@ def run(parsed: ParsedRobot, report: ValidationReport) -> None:
             _unknown(report, f"robot type '{robot_type}' — stability only computed for wheeled robots")
             return
 
-        frames = walk(parsed)
+        frames = walk(parsed, joint_angles=joint_angles)
         polygon = extract_wheeled_polygon(parsed, frames)
 
         if polygon is None:
@@ -77,6 +115,15 @@ def run(parsed: ParsedRobot, report: ValidationReport) -> None:
         report.stability.margin_mm = margin_mm
         report.stability.tip_direction = tip_dir
         report.stability.status = "PASS" if stable else "FAIL"
+
+        com_height = report.statics.com_height_above_ground
+        if com_height is not None:
+            ratio, cls, tip_angle = _compute_com_height_ratio(polygon, com_height)
+            if ratio is not None:
+                report.stability.com_height_ratio = ratio
+                report.stability.com_height_ratio_confidence = "estimated"
+                report.stability.com_height_ratio_class = cls
+                report.stability.tipping_angle_deg = tip_angle
 
     except Exception:
         _unknown(report, "internal error during stability computation")

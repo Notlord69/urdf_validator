@@ -1,0 +1,572 @@
+{
+  "urdf_path": "tests/sample_urdf/ANYmal.urdf",
+  "robot_name": "anymal",
+  "robot_type": "quadruped",
+  "timestamp": "2026-06-16T07:30:11.950792+00:00",
+  "validator_version": "0.1.0",
+  "schema": {
+    "status": "INFO",
+    "critical_issues": [],
+    "warnings": [],
+    "infos": [
+      "Link 'base': mesh 'package://anymal_b_simple_description/meshes/anymal_base.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'LF_HIP': mesh 'package://anymal_b_simple_description/meshes/anymal_hip_l.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'LF_THIGH': mesh 'package://anymal_b_simple_description/meshes/anymal_thigh_l.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'LF_SHANK': mesh 'package://anymal_b_simple_description/meshes/anymal_shank_l.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'LF_ADAPTER': mesh 'package://anymal_b_simple_description/meshes/anymal_foot.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'RF_HIP': mesh 'package://anymal_b_simple_description/meshes/anymal_hip_r.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'RF_THIGH': mesh 'package://anymal_b_simple_description/meshes/anymal_thigh_r.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'RF_SHANK': mesh 'package://anymal_b_simple_description/meshes/anymal_shank_r.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'RF_ADAPTER': mesh 'package://anymal_b_simple_description/meshes/anymal_foot.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'LH_HIP': mesh 'package://anymal_b_simple_description/meshes/anymal_hip_r.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'LH_THIGH': mesh 'package://anymal_b_simple_description/meshes/anymal_thigh_r.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'LH_SHANK': mesh 'package://anymal_b_simple_description/meshes/anymal_shank_r.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'LH_ADAPTER': mesh 'package://anymal_b_simple_description/meshes/anymal_foot.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'RH_HIP': mesh 'package://anymal_b_simple_description/meshes/anymal_hip_l.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'RH_THIGH': mesh 'package://anymal_b_simple_description/meshes/anymal_thigh_l.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'RH_SHANK': mesh 'package://anymal_b_simple_description/meshes/anymal_shank_l.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'RH_ADAPTER': mesh 'package://anymal_b_simple_description/meshes/anymal_foot.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced"
+    ]
+  },
+  "links": [
+    {
+      "name": "base",
+      "mass": null,
+      "mass_confidence": "missing",
+      "inertia_tensor": null,
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "base_inertia",
+      "mass": 16.793507758,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.217391101503,
+        -0.00132873239126,
+        -0.00228200226173,
+        -0.00132873239126,
+        0.639432546734,
+        -0.00138078263145,
+        -0.00228200226173,
+        -0.00138078263145,
+        0.62414077654
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "LF_HIP",
+      "mass": 1.42462064,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.00243023349564,
+        -1.53023971e-05,
+        -2.1819095354e-05,
+        -1.53023971e-05,
+        0.00230257239103,
+        2.6473021273e-05,
+        -2.1819095354e-05,
+        2.6473021273e-05,
+        0.0019806759227
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "LF_THIGH",
+      "mass": 1.634976467,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0120367944369,
+        6.762065206e-05,
+        0.000287806340448,
+        6.762065206e-05,
+        0.0120643637939,
+        -0.00140610131218,
+        0.000287806340448,
+        -0.00140610131218,
+        0.00249422574881
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "LF_SHANK",
+      "mass": 0.207204302,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0002104880248,
+        -5.6750980345e-05,
+        1.0127699391e-05,
+        -5.6750980345e-05,
+        0.000676270210023,
+        -8.22869024e-07,
+        1.0127699391e-05,
+        -8.22869024e-07,
+        0.000545032674924
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "LF_ADAPTER",
+      "mass": 0.140170767,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.00159938741862,
+        -9.32e-13,
+        1.039e-11,
+        -9.32e-13,
+        0.00159938741932,
+        1.7563e-11,
+        1.039e-11,
+        1.7563e-11,
+        5.4423177329e-05
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "LF_FOOT",
+      "mass": null,
+      "mass_confidence": "missing",
+      "inertia_tensor": null,
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "RF_HIP",
+      "mass": 1.42462064,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.00243023349564,
+        1.53023971e-05,
+        -2.1819095354e-05,
+        1.53023971e-05,
+        0.00230257239103,
+        -2.6473021273e-05,
+        -2.1819095354e-05,
+        -2.6473021273e-05,
+        0.0019806759227
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "RF_THIGH",
+      "mass": 1.634976467,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0120367944369,
+        -6.762065206e-05,
+        0.000287806340448,
+        -6.762065206e-05,
+        0.0120643637939,
+        0.00140610131218,
+        0.000287806340448,
+        0.00140610131218,
+        0.00249422574881
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "RF_SHANK",
+      "mass": 0.207204302,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0002104880248,
+        5.6750980345e-05,
+        1.0127699391e-05,
+        5.6750980345e-05,
+        0.000676270210023,
+        8.22869024e-07,
+        1.0127699391e-05,
+        8.22869024e-07,
+        0.000545032674924
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "RF_ADAPTER",
+      "mass": 0.140170767,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.00159938741862,
+        -9.32e-13,
+        1.039e-11,
+        -9.32e-13,
+        0.00159938741932,
+        1.7563e-11,
+        1.039e-11,
+        1.7563e-11,
+        5.4423177329e-05
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "RF_FOOT",
+      "mass": null,
+      "mass_confidence": "missing",
+      "inertia_tensor": null,
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "LH_HIP",
+      "mass": 1.42462064,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.00243023349564,
+        1.53023971e-05,
+        2.1819095354e-05,
+        1.53023971e-05,
+        0.00230257239103,
+        2.6473021273e-05,
+        2.1819095354e-05,
+        2.6473021273e-05,
+        0.0019806759227
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "LH_THIGH",
+      "mass": 1.634976467,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0120367944369,
+        -6.762065206e-05,
+        -0.000287806340448,
+        -6.762065206e-05,
+        0.0120643637939,
+        -0.00140610131218,
+        -0.000287806340448,
+        -0.00140610131218,
+        0.00249422574881
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "LH_SHANK",
+      "mass": 0.207204302,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0002104880248,
+        5.6750980345e-05,
+        -1.0127699391e-05,
+        5.6750980345e-05,
+        0.000676270210023,
+        -8.22869024e-07,
+        -1.0127699391e-05,
+        -8.22869024e-07,
+        0.000545032674924
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "LH_ADAPTER",
+      "mass": 0.140170767,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.00159938741862,
+        -9.32e-13,
+        1.039e-11,
+        -9.32e-13,
+        0.00159938741932,
+        1.7563e-11,
+        1.039e-11,
+        1.7563e-11,
+        5.4423177329e-05
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "LH_FOOT",
+      "mass": null,
+      "mass_confidence": "missing",
+      "inertia_tensor": null,
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "RH_HIP",
+      "mass": 1.42462064,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.00243023349564,
+        -1.53023971e-05,
+        2.1819095354e-05,
+        -1.53023971e-05,
+        0.00230257239103,
+        -2.6473021273e-05,
+        2.1819095354e-05,
+        -2.6473021273e-05,
+        0.0019806759227
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "RH_THIGH",
+      "mass": 1.634976467,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0120367944369,
+        6.762065206e-05,
+        -0.000287806340448,
+        6.762065206e-05,
+        0.0120643637939,
+        0.00140610131218,
+        -0.000287806340448,
+        0.00140610131218,
+        0.00249422574881
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "RH_SHANK",
+      "mass": 0.207204302,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0002104880248,
+        -5.6750980345e-05,
+        -1.0127699391e-05,
+        -5.6750980345e-05,
+        0.000676270210023,
+        8.22869024e-07,
+        -1.0127699391e-05,
+        8.22869024e-07,
+        0.000545032674924
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "RH_ADAPTER",
+      "mass": 0.140170767,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.00159938741862,
+        -9.32e-13,
+        1.039e-11,
+        -9.32e-13,
+        0.00159938741932,
+        1.7563e-11,
+        1.039e-11,
+        1.7563e-11,
+        5.4423177329e-05
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "RH_FOOT",
+      "mass": null,
+      "mass_confidence": "missing",
+      "inertia_tensor": null,
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    }
+  ],
+  "statics": {
+    "joints": [
+      {
+        "name": "LF_HAA",
+        "required_torque_gravity": 1.9486999170988093,
+        "torque_confidence": "estimated",
+        "declared_effort": 80.0,
+        "margin": 41.05301144524223,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 margin 41.05\u00d7"
+      },
+      {
+        "name": "LF_HFE",
+        "required_torque_gravity": 0.13762817930506355,
+        "torque_confidence": "estimated",
+        "declared_effort": 80.0,
+        "margin": 581.2763084126383,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 margin 581.28\u00d7"
+      },
+      {
+        "name": "LF_KFE",
+        "required_torque_gravity": 0.20014815378113018,
+        "torque_confidence": "estimated",
+        "declared_effort": 80.0,
+        "margin": 399.70391177069325,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 margin 399.70\u00d7"
+      },
+      {
+        "name": "RF_HAA",
+        "required_torque_gravity": 1.9486999211470313,
+        "torque_confidence": "estimated",
+        "declared_effort": 80.0,
+        "margin": 41.05301135995885,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 margin 41.05\u00d7"
+      },
+      {
+        "name": "RF_HFE",
+        "required_torque_gravity": 0.13762817930506355,
+        "torque_confidence": "estimated",
+        "declared_effort": 80.0,
+        "margin": 581.2763084126383,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 margin 581.28\u00d7"
+      },
+      {
+        "name": "RF_KFE",
+        "required_torque_gravity": 0.20014815378113018,
+        "torque_confidence": "estimated",
+        "declared_effort": 80.0,
+        "margin": 399.70391177069325,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 margin 399.70\u00d7"
+      },
+      {
+        "name": "LH_HAA",
+        "required_torque_gravity": 1.9486999170988093,
+        "torque_confidence": "estimated",
+        "declared_effort": 80.0,
+        "margin": 41.05301144524223,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 margin 41.05\u00d7"
+      },
+      {
+        "name": "LH_HFE",
+        "required_torque_gravity": 0.13762818168669305,
+        "torque_confidence": "estimated",
+        "declared_effort": 80.0,
+        "margin": 581.2762983537623,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 margin 581.28\u00d7"
+      },
+      {
+        "name": "LH_KFE",
+        "required_torque_gravity": 0.20014815616276047,
+        "torque_confidence": "estimated",
+        "declared_effort": 80.0,
+        "margin": 399.70390701448184,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 margin 399.70\u00d7"
+      },
+      {
+        "name": "RH_HAA",
+        "required_torque_gravity": 1.9486999211470313,
+        "torque_confidence": "estimated",
+        "declared_effort": 80.0,
+        "margin": 41.05301135995885,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 margin 41.05\u00d7"
+      },
+      {
+        "name": "RH_HFE",
+        "required_torque_gravity": 0.13762818168669305,
+        "torque_confidence": "estimated",
+        "declared_effort": 80.0,
+        "margin": 581.2762983537623,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 margin 581.28\u00d7"
+      },
+      {
+        "name": "RH_KFE",
+        "required_torque_gravity": 0.20014815616276047,
+        "torque_confidence": "estimated",
+        "declared_effort": 80.0,
+        "margin": 399.70390701448184,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 margin 399.70\u00d7"
+      }
+    ],
+    "full_body_com": [
+      -0.0010822859889116584,
+      -0.0007801378881265841,
+      -0.034341089279689825
+    ],
+    "com_confidence": "estimated",
+    "total_mass": 30.421396462000015,
+    "mass_confidence": "estimated",
+    "status": "PASS",
+    "com_height_above_ground": -0.034341089279689825,
+    "heaviest_link_name": "base_inertia",
+    "heaviest_link_pct": 55.202948289954776,
+    "mass_split_warning": null,
+    "weakest_joint_name": "RF_HAA",
+    "payload_capacity_kg": null
+  },
+  "stability": {
+    "stable": null,
+    "margin_mm": null,
+    "tip_direction": null,
+    "com_height_ratio": null,
+    "com_height_ratio_confidence": "missing",
+    "com_height_ratio_class": null,
+    "tipping_angle_deg": null,
+    "status": "UNKNOWN",
+    "reason": "robot type 'quadruped' \u2014 stability only computed for wheeled robots",
+    "deep_validated": false
+  },
+  "workspace": {
+    "max_reach": 0.9601208133047938,
+    "reach_confidence": "estimated",
+    "vertical_reach": 0.5997812510715151,
+    "horizontal_reach": 0.9598055692177119,
+    "status": "PASS",
+    "reach_from_base": 0.9601208133047938,
+    "reason": null,
+    "task": null,
+    "task_target_height_m": null,
+    "task_height_reachable": null,
+    "task_com_stable_during_reach": null,
+    "task_com_shift_estimate_m": null,
+    "task_reason": null
+  },
+  "overall_status": "PASS",
+  "critical_issues": [],
+  "warnings": [],
+  "unknowns": [],
+  "confidence_level": "MEDIUM"
+}

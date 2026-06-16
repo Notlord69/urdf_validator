@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -37,10 +37,44 @@ def _origin_to_transform(xyz: List[float], rpy: List[float]) -> np.ndarray:
     return T
 
 
-def walk(robot: ParsedRobot) -> Dict[str, LinkFrame]:
+def _axis_angle_to_matrix(axis: List[float], angle: float) -> np.ndarray:
+    """Rodrigues rotation for revolute/continuous joints."""
+    a = np.array(axis, dtype=float)
+    norm = np.linalg.norm(a)
+    if norm < 1e-12:
+        return np.eye(3)
+    a = a / norm
+    c, s = np.cos(angle), np.sin(angle)
+    K = np.array([[0, -a[2], a[1]], [a[2], 0, -a[0]], [-a[1], a[0], 0]], dtype=float)
+    return np.eye(3) + s * K + (1.0 - c) * (K @ K)
+
+
+def _joint_motion_transform(joint_type: str, axis: List[float], value: float) -> np.ndarray:
+    """4×4 motion transform for a 1-DOF joint displaced by *value*.
+
+    Revolute/continuous: rotation around *axis* by *value* radians.
+    Prismatic: translation along *axis* by *value* metres.
+    All other types return identity.
+    """
+    T = np.eye(4)
+    if joint_type in ("revolute", "continuous"):
+        T[:3, :3] = _axis_angle_to_matrix(axis, value)
+    elif joint_type == "prismatic":
+        a = np.array(axis, dtype=float)
+        norm = np.linalg.norm(a)
+        if norm > 1e-12:
+            T[:3, 3] = (a / norm) * value
+    return T
+
+
+def walk(
+    robot: ParsedRobot,
+    joint_angles: Optional[Dict[str, float]] = None,
+) -> Dict[str, LinkFrame]:
     """BFS from the root link, accumulating T_world = T_parent @ T_joint per link.
 
-    Zero pose: all joint angles at 0.0.
+    joint_angles maps joint name → displacement (radians for revolute/continuous,
+    metres for prismatic). Missing keys default to 0.0 (zero pose).
     COM is placed at the inertial origin of each link (in the link's local frame).
     Returns an empty dict for an empty robot; never raises.
     """
@@ -85,6 +119,12 @@ def walk(robot: ParsedRobot) -> Dict[str, LinkFrame]:
         )
         for joint in children.get(link_name, []):
             T_joint = _origin_to_transform(joint.origin_xyz, joint.origin_rpy)
+            if joint_angles:
+                value = joint_angles.get(joint.name, 0.0)
+                if value != 0.0:
+                    T_joint = T_joint @ _joint_motion_transform(
+                        joint.joint_type, joint.axis, value
+                    )
             queue.append((joint.child, T_parent @ T_joint))
 
     return result

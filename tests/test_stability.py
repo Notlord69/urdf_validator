@@ -348,6 +348,66 @@ def test_formatter_silent_when_unknown_has_no_reason():
 # Geometry-based contact detection (v0.5) — TurtleBot3-like topology
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# COM height ratio (§3.4.3)
+# ---------------------------------------------------------------------------
+
+def test_com_height_ratio_populated_after_stability_run():
+    robot = _four_wheel_robot()
+    report = _report_with_com([0.0, 0.0, 0.5])
+    report.statics.com_height_above_ground = 0.5
+    stability.run(robot, report)
+    assert report.stability.com_height_ratio is not None
+    assert report.stability.com_height_ratio_class is not None
+    assert report.stability.tipping_angle_deg is not None
+
+
+def test_com_height_ratio_value_for_square_polygon():
+    """Square polygon (±1, ±1): min span = 2 m.  COM height 1 m → ratio = 0.5."""
+    robot = _four_wheel_robot()
+    report = _report_with_com([0.0, 0.0, 1.0])
+    report.statics.com_height_above_ground = 1.0
+    stability.run(robot, report)
+    assert report.stability.com_height_ratio == pytest.approx(0.5, rel=0.01)
+
+
+def test_tipping_angle_positive():
+    robot = _four_wheel_robot()
+    report = _report_with_com([0.0, 0.0, 0.5])
+    report.statics.com_height_above_ground = 0.5
+    stability.run(robot, report)
+    assert report.stability.tipping_angle_deg > 0
+    assert report.stability.tipping_angle_deg < 90
+
+
+def test_com_height_ratio_not_set_when_com_height_missing():
+    robot = _four_wheel_robot()
+    report = _report_with_com([0.0, 0.0, 0.5])
+    # statics.com_height_above_ground stays None (default)
+    stability.run(robot, report)
+    assert report.stability.com_height_ratio is None
+
+
+def test_classify_com_height_ratio_thresholds():
+    from urdf_validator_main.checks.stability import _classify_com_height_ratio
+    assert _classify_com_height_ratio(0.3) == "very_stable"
+    assert _classify_com_height_ratio(0.7) == "stable"
+    assert _classify_com_height_ratio(1.5) == "manageable"
+    assert _classify_com_height_ratio(2.5) == "requires_active_balancing"
+    assert _classify_com_height_ratio(4.0) == "will_fall"
+
+
+def test_formatter_shows_com_height_ratio_line():
+    from urdf_validator_main.report.formatter import format_report
+    robot = _four_wheel_robot()
+    report = _report_with_com([0.0, 0.0, 0.5])
+    report.statics.com_height_above_ground = 0.5
+    stability.run(robot, report)
+    output = format_report(report)
+    assert "COM height ratio" in output
+    assert "tips at" in output
+
+
 def test_turtlebot3_topology_gives_real_status():
     """2 named wheel links + 1 caster_link (sphere) must produce PASS or FAIL, not UNKNOWN.
 

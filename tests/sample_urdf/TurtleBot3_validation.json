@@ -1,0 +1,208 @@
+{
+  "urdf_path": "tests/sample_urdf/TurtleBot3.urdf",
+  "robot_name": "turtlebot3_burger",
+  "robot_type": "wheeled",
+  "timestamp": "2026-06-16T07:30:00.406475+00:00",
+  "validator_version": "0.1.0",
+  "schema": {
+    "status": "INFO",
+    "critical_issues": [],
+    "warnings": [],
+    "infos": [
+      "Joint 'wheel_left_joint' (continuous) has no effort or velocity limit declared",
+      "Joint 'wheel_right_joint' (continuous) has no effort or velocity limit declared",
+      "Link 'base_link': mesh 'package://turtlebot3_description/meshes/bases/burger_base.stl' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'wheel_left_link': mesh 'package://turtlebot3_description/meshes/wheels/left_tire.stl' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'wheel_right_link': mesh 'package://turtlebot3_description/meshes/wheels/right_tire.stl' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'base_scan': mesh 'package://turtlebot3_description/meshes/sensors/lds.stl' not found \u2014 package:// resolution requires ROS workspace to be sourced"
+    ]
+  },
+  "links": [
+    {
+      "name": "base_footprint",
+      "mass": null,
+      "mass_confidence": "missing",
+      "inertia_tensor": null,
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "base_link",
+      "mass": 0.82573504,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0022124416,
+        -1.2294101e-05,
+        3.4938785e-05,
+        -1.2294101e-05,
+        0.0021193702,
+        -5.0120904e-06,
+        3.4938785e-05,
+        -5.0120904e-06,
+        0.0020064271
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "wheel_left_link",
+      "mass": 0.02849894,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        1.117558e-05,
+        -4.2369783e-11,
+        -5.9381719e-09,
+        -4.2369783e-11,
+        1.1192413e-05,
+        -1.4400107e-11,
+        -5.9381719e-09,
+        -1.4400107e-11,
+        2.0712558e-05
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "wheel_right_link",
+      "mass": 0.02849894,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        1.117558e-05,
+        -4.2369783e-11,
+        -5.9381719e-09,
+        -4.2369783e-11,
+        1.1192413e-05,
+        -1.4400107e-11,
+        -5.9381719e-09,
+        -1.4400107e-11,
+        2.0712558e-05
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "caster_back_link",
+      "mass": 0.005,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.001,
+        0.0,
+        0.0,
+        0.0,
+        0.001,
+        0.0,
+        0.0,
+        0.0,
+        0.001
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "imu_link",
+      "mass": null,
+      "mass_confidence": "missing",
+      "inertia_tensor": null,
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "base_scan",
+      "mass": 0.114,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.001,
+        0.0,
+        0.0,
+        0.0,
+        0.001,
+        0.0,
+        0.0,
+        0.0,
+        0.001
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    }
+  ],
+  "statics": {
+    "joints": [
+      {
+        "name": "wheel_left_joint",
+        "required_torque_gravity": 0.0,
+        "torque_confidence": "estimated",
+        "declared_effort": null,
+        "margin": null,
+        "status": "UNKNOWN",
+        "subtree_mass": null,
+        "summary": "Cannot assess \u2014 missing effort limit or mass data"
+      },
+      {
+        "name": "wheel_right_joint",
+        "required_torque_gravity": 0.0,
+        "torque_confidence": "estimated",
+        "declared_effort": null,
+        "margin": null,
+        "status": "UNKNOWN",
+        "subtree_mass": null,
+        "summary": "Cannot assess \u2014 missing effort limit or mass data"
+      }
+    ],
+    "full_body_com": [
+      -0.004045988625391287,
+      0.0,
+      0.030862797680643258
+    ],
+    "com_confidence": "estimated",
+    "total_mass": 1.00173292,
+    "mass_confidence": "estimated",
+    "status": "PASS",
+    "com_height_above_ground": 0.030862797680643258,
+    "heaviest_link_name": "base_link",
+    "heaviest_link_pct": 82.43065826368169,
+    "mass_split_warning": null,
+    "weakest_joint_name": null,
+    "payload_capacity_kg": null
+  },
+  "stability": {
+    "stable": true,
+    "margin_mm": 4.045988625391286,
+    "tip_direction": "E",
+    "com_height_ratio": 0.9644624275201018,
+    "com_height_ratio_confidence": "estimated",
+    "com_height_ratio_class": "stable",
+    "tipping_angle_deg": 27.403285279468477,
+    "status": "PASS",
+    "reason": null,
+    "deep_validated": false
+  },
+  "workspace": {
+    "max_reach": null,
+    "reach_confidence": "missing",
+    "vertical_reach": null,
+    "horizontal_reach": null,
+    "status": "UNKNOWN",
+    "reach_from_base": null,
+    "reason": "No arm chain detected (robot may be wheeled or legged only)",
+    "task": null,
+    "task_target_height_m": null,
+    "task_height_reachable": null,
+    "task_com_stable_during_reach": null,
+    "task_com_shift_estimate_m": null,
+    "task_reason": null
+  },
+  "overall_status": "PASS",
+  "critical_issues": [],
+  "warnings": [],
+  "unknowns": [
+    "Workspace: no arm chain detected \u2014 robot may have no manipulator"
+  ],
+  "confidence_level": "MEDIUM"
+}

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -113,9 +113,13 @@ def _joint_summary(
     return "Cannot assess — missing effort limit or mass data"
 
 
-def run(parsed: ParsedRobot, report: ValidationReport) -> None:
+def run(
+    parsed: ParsedRobot,
+    report: ValidationReport,
+    joint_angles: Optional[Dict[str, float]] = None,
+) -> None:
     try:
-        frames = walk(parsed)
+        frames = walk(parsed, joint_angles=joint_angles)
         cm = _children_map(parsed)
 
         all_names = list(frames.keys())

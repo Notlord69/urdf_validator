@@ -208,8 +208,24 @@ def _stability_section(stability: StabilityReport) -> list:
 
     margin_str = f"  margin {stability.margin_mm:.1f} mm" if stability.margin_mm is not None else ""
     tip_str = f"  tip: {stability.tip_direction}" if stability.tip_direction and not stability.stable else ""
+    deep_str = f"  {_GREEN}[SIM]{_RESET}" if stability.deep_validated else ""
 
-    return [f"[STABILITY]  {badge}{margin_str}{tip_str}"]
+    lines = [f"[STABILITY]  {badge}{margin_str}{tip_str}{deep_str}"]
+
+    if stability.com_height_ratio is not None:
+        cls_str = stability.com_height_ratio_class or ""
+        cls_display = cls_str.replace("_", " ")
+        tip_angle_str = (
+            f"  tips at {stability.tipping_angle_deg:.1f}°"
+            if stability.tipping_angle_deg is not None
+            else ""
+        )
+        lines.append(
+            f"             COM height ratio {stability.com_height_ratio:.2f}"
+            f" — {cls_display}{tip_angle_str}"
+        )
+
+    return lines
 
 
 def _schema_section(schema: SchemaReport) -> list:

@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 from datetime import datetime, timezone
+from typing import Dict, Optional
 
 from urdf_validator_main.checks.schema import run as run_schema_checks
 from urdf_validator_main.checks.stability import run as run_stability
@@ -15,6 +16,29 @@ from urdf_validator_main.report.models import LinkPhysicsReport, ValidationRepor
 
 
 _STATUS_RANK = {"FAIL": 4, "WARN": 3, "PASS": 2, "UNKNOWN": 1}
+
+_ACTUATED_JOINT_TYPES = {"revolute", "prismatic"}
+
+
+def _build_limits_angles(parsed) -> Dict[str, float]:
+    """Map each bounded revolute/prismatic joint to its upper limit."""
+    return {
+        j.name: j.limit_upper
+        for j in parsed.joints
+        if j.joint_type in _ACTUATED_JOINT_TYPES and j.limit_upper is not None
+    }
+
+
+def _parse_joint_angles(s: str) -> Dict[str, float]:
+    """Parse 'j1=0.5,j2=1.2' into {'j1': 0.5, 'j2': 1.2}. Raises ValueError on bad input."""
+    result: Dict[str, float] = {}
+    for part in s.split(","):
+        part = part.strip()
+        if "=" not in part:
+            raise ValueError(f"invalid spec '{part}' — expected 'name=value'")
+        name, val = part.split("=", 1)
+        result[name.strip()] = float(val.strip())
+    return result
 
 _SCHEMA_TO_STATUS = {
     "CRITICAL": "FAIL",
@@ -67,7 +91,12 @@ def parse_args(argv=None):
         choices=["zero", "home", "limits", "custom"],
         default="zero",
         metavar="POSE",
-        help="Joint configuration for statics (zero|home|limits|custom). Only 'zero' is implemented in v0.2.",
+        help="Joint configuration for statics/stability/workspace (zero|home|limits|custom).",
+    )
+    parser.add_argument(
+        "--joint-angles",
+        metavar="ANGLES",
+        help="Joint angles for --pose custom, e.g. 'j1=0.5,j2=1.2' (radians/metres)",
     )
     parser.add_argument(
         "--task",
@@ -81,9 +110,17 @@ def parse_args(argv=None):
         metavar="M",
         help="Target height in metres (required with --task custom)",
     )
+    parser.add_argument(
+        "--deep",
+        action="store_true",
+        default=False,
+        help="Run MuJoCo simulation pass to cross-validate gravity torques and COM (requires mujoco)",
+    )
     args = parser.parse_args(argv)
     if args.task == "custom" and args.height is None:
         parser.error("--height is required when --task is 'custom'")
+    if args.joint_angles is not None and args.pose != "custom":
+        parser.error("--joint-angles requires --pose custom")
     return args
 
 
@@ -125,41 +162,91 @@ def _json_output_path(urdf_file: str, output_dir) -> str:
     return os.path.join(os.path.dirname(os.path.abspath(urdf_file)), filename)
 
 
+def _maybe_run_deep(args, report, urdf_path: str) -> None:
+    """Fire MuJoCo deep validation when --deep is set or auto-trigger conditions are met."""
+    stability_negative = (
+        report.stability.margin_mm is not None and report.stability.margin_mm < 0
+    )
+    if not (args.deep or stability_negative):
+        return
+    if stability_negative and not args.deep:
+        print("[INFO] Auto-triggering --deep: stability margin is negative", file=sys.stderr)
+    from urdf_validator_main.integrations.mujoco_wrapper import run_deep
+    run_deep(report, urdf_path)
+
+
 def main() -> None:
     args = parse_args()
-    if args.pose != "zero":
-        print(f"[WARN] --pose '{args.pose}' not yet supported in v0.2; using zero pose", file=sys.stderr)
-    path = args.urdf_file
+    if args.pose == "home":
+        print(
+            "[WARN] --pose 'home' not yet supported; URDF has no standard home configuration"
+            " — using zero pose",
+            file=sys.stderr,
+        )
 
-    result = load_urdf(path)
-    if isinstance(result, ParseError):
-        print(f"[ERROR] {result.message}")
-        sys.exit(2)
+    original_path = args.urdf_file
+    path = original_path
+    _temp_urdf = None
 
-    task_height_m = None
-    if args.task:
-        task_height_m = args.height if args.task == "custom" else _TASK_HEIGHTS[args.task]
+    if original_path.lower().endswith(".xacro"):
+        from urdf_validator_main.parser.xacro_handler import preprocess
+        try:
+            path = preprocess(original_path)
+            _temp_urdf = path
+        except (ImportError, RuntimeError) as exc:
+            print(f"[ERROR] {exc}")
+            sys.exit(2)
 
-    report = ValidationReport(
-        urdf_path=path,
-        robot_name=result.name,
-        robot_type=detect_robot_type(result),
-        timestamp=datetime.now(timezone.utc).isoformat(),
-    )
-    run_schema_checks(result, report)
-    _populate_link_physics(result, report)
-    run_statics(result, report)
-    run_stability(result, report)
-    run_workspace(result, report, task_name=args.task, task_height_m=task_height_m)
-    report.overall_status = _derive_overall_status(report)
-    report.confidence_level = _derive_confidence_level(report)
-
-    json_path = _json_output_path(path, args.output_dir)
     try:
-        export(report, json_path)
-    except Exception as exc:
-        print(f"[WARN] Could not write JSON report: {exc}", file=sys.stderr)
-        json_path = None
+        result = load_urdf(path)
+        if isinstance(result, ParseError):
+            print(f"[ERROR] {result.message}")
+            sys.exit(2)
 
-    print(format_report(report, json_path=json_path))
-    sys.exit(_exit_code(report))
+        task_height_m = None
+        if args.task:
+            task_height_m = args.height if args.task == "custom" else _TASK_HEIGHTS[args.task]
+
+        # Resolve --pose to a joint_angles dict for the chain walker.
+        pose_joint_angles: Optional[Dict[str, float]] = None
+        if args.pose == "limits":
+            pose_joint_angles = _build_limits_angles(result)
+        elif args.pose == "custom" and args.joint_angles:
+            try:
+                pose_joint_angles = _parse_joint_angles(args.joint_angles)
+            except ValueError as exc:
+                print(f"[ERROR] --joint-angles: {exc}")
+                sys.exit(2)
+
+        report = ValidationReport(
+            urdf_path=original_path,
+            robot_name=result.name,
+            robot_type=detect_robot_type(result),
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        run_schema_checks(result, report)
+        _populate_link_physics(result, report)
+        run_statics(result, report, joint_angles=pose_joint_angles)
+        run_stability(result, report, joint_angles=pose_joint_angles)
+        run_workspace(result, report, task_name=args.task, task_height_m=task_height_m,
+                      joint_angles=pose_joint_angles)
+        _maybe_run_deep(args, report, path)
+
+        report.overall_status = _derive_overall_status(report)
+        report.confidence_level = _derive_confidence_level(report)
+
+        json_path = _json_output_path(original_path, args.output_dir)
+        try:
+            export(report, json_path)
+        except Exception as exc:
+            print(f"[WARN] Could not write JSON report: {exc}", file=sys.stderr)
+            json_path = None
+
+        print(format_report(report, json_path=json_path))
+        sys.exit(_exit_code(report))
+    finally:
+        if _temp_urdf and os.path.isfile(_temp_urdf):
+            try:
+                os.unlink(_temp_urdf)
+            except OSError:
+                pass

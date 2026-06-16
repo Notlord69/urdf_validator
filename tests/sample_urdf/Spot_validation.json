@@ -1,45 +1,57 @@
 {
-  "urdf_path": "tests/sample_urdf/Franka_Panda.urdf",
-  "robot_name": "frankie",
-  "robot_type": "unknown",
-  "timestamp": "2026-06-16T07:30:00.413270+00:00",
+  "urdf_path": "tests/sample_urdf/Spot.urdf",
+  "robot_name": "spot",
+  "robot_type": "quadruped",
+  "timestamp": "2026-06-16T07:30:15.045115+00:00",
   "validator_version": "0.1.0",
   "schema": {
     "status": "WARN",
     "critical_issues": [],
     "warnings": [
-      "Link 'panda_base1' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
-      "Link 'panda_base_arm' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
-      "Link 'panda_link1' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
-      "Link 'panda_link2' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
-      "Link 'panda_link3' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
-      "Link 'panda_link4' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
-      "Link 'panda_link5' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
-      "Link 'panda_link6' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
-      "Link 'panda_link7' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
-      "Link 'frankie_leftfinger' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
-      "Link 'frankie_rightfinger' has no inertial block (mass unknown) \u2014 will cause physics engine instability"
+      "Link 'fl.hip' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
+      "Link 'fl.uleg' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
+      "Link 'fl.lleg' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
+      "Link 'fr.hip' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
+      "Link 'fr.uleg' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
+      "Link 'fr.lleg' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
+      "Link 'hl.hip' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
+      "Link 'hl.uleg' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
+      "Link 'hl.lleg' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
+      "Link 'hr.hip' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
+      "Link 'hr.uleg' has no inertial block (mass unknown) \u2014 will cause physics engine instability",
+      "Link 'hr.lleg' has no inertial block (mass unknown) \u2014 will cause physics engine instability"
     ],
     "infos": [
-      "Link 'frankie_leftfinger' has visual geometry (mesh) but no collision geometry \u2014 will be invisible to physics engines",
-      "Link 'frankie_rightfinger' has visual geometry (mesh) but no collision geometry \u2014 will be invisible to physics engines",
-      "Link 'panda_base_arm': mesh 'package://franka_description/meshes/visual/omron.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
-      "Link 'panda_link0': mesh 'package://franka_description/meshes/visual/link0.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
-      "Link 'panda_link1': mesh 'package://franka_description/meshes/visual/link1.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
-      "Link 'panda_link2': mesh 'package://franka_description/meshes/visual/link2.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
-      "Link 'panda_link3': mesh 'package://franka_description/meshes/visual/link3.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
-      "Link 'panda_link4': mesh 'package://franka_description/meshes/visual/link4.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
-      "Link 'panda_link5': mesh 'package://franka_description/meshes/visual/link5.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
-      "Link 'panda_link6': mesh 'package://franka_description/meshes/visual/link6.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
-      "Link 'panda_link7': mesh 'package://franka_description/meshes/visual/link7.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
-      "Link 'frankie_hand': mesh 'package://franka_description/meshes/visual/hand.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
-      "Link 'frankie_leftfinger': mesh 'package://franka_description/meshes/visual/finger.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced",
-      "Link 'frankie_rightfinger': mesh 'package://franka_description/meshes/visual/finger.dae' not found \u2014 package:// resolution requires ROS workspace to be sourced"
+      "Link 'fl.hip' has visual geometry (mesh) but no collision geometry \u2014 will be invisible to physics engines",
+      "Link 'fl.uleg' has visual geometry (mesh) but no collision geometry \u2014 will be invisible to physics engines",
+      "Link 'fl.lleg' has visual geometry (mesh) but no collision geometry \u2014 will be invisible to physics engines",
+      "Link 'fr.hip' has visual geometry (mesh) but no collision geometry \u2014 will be invisible to physics engines",
+      "Link 'fr.uleg' has visual geometry (mesh) but no collision geometry \u2014 will be invisible to physics engines",
+      "Link 'fr.lleg' has visual geometry (mesh) but no collision geometry \u2014 will be invisible to physics engines",
+      "Link 'hl.hip' has visual geometry (mesh) but no collision geometry \u2014 will be invisible to physics engines",
+      "Link 'hl.uleg' has visual geometry (mesh) but no collision geometry \u2014 will be invisible to physics engines",
+      "Link 'hl.lleg' has visual geometry (mesh) but no collision geometry \u2014 will be invisible to physics engines",
+      "Link 'hr.hip' has visual geometry (mesh) but no collision geometry \u2014 will be invisible to physics engines",
+      "Link 'hr.uleg' has visual geometry (mesh) but no collision geometry \u2014 will be invisible to physics engines",
+      "Link 'hr.lleg' has visual geometry (mesh) but no collision geometry \u2014 will be invisible to physics engines",
+      "Link 'base': mesh 'link_models/base.obj' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'fl.hip': mesh 'link_models/fl.hip.obj' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'fl.uleg': mesh 'link_models/fl.uleg.obj' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'fl.lleg': mesh 'link_models/fl.lleg.obj' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'fr.hip': mesh 'link_models/fr.hip.obj' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'fr.uleg': mesh 'link_models/fr.uleg.obj' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'fr.lleg': mesh 'link_models/fr.lleg.obj' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'hl.hip': mesh 'link_models/hl.hip.obj' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'hl.uleg': mesh 'link_models/hl.uleg.obj' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'hl.lleg': mesh 'link_models/hl.lleg.obj' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'hr.hip': mesh 'link_models/hr.hip.obj' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'hr.uleg': mesh 'link_models/hr.uleg.obj' not found \u2014 package:// resolution requires ROS workspace to be sourced",
+      "Link 'hr.lleg': mesh 'link_models/hr.lleg.obj' not found \u2014 package:// resolution requires ROS workspace to be sourced"
     ]
   },
   "links": [
     {
-      "name": "panda_base0",
+      "name": "base",
       "mass": null,
       "mass_confidence": "missing",
       "inertia_tensor": null,
@@ -48,7 +60,7 @@
       "com_confidence": "missing"
     },
     {
-      "name": "panda_base1",
+      "name": "fl.hip",
       "mass": null,
       "mass_confidence": "missing",
       "inertia_tensor": null,
@@ -57,7 +69,7 @@
       "com_confidence": "missing"
     },
     {
-      "name": "panda_base_arm",
+      "name": "fl.uleg",
       "mass": null,
       "mass_confidence": "missing",
       "inertia_tensor": null,
@@ -66,7 +78,7 @@
       "com_confidence": "missing"
     },
     {
-      "name": "panda_link0",
+      "name": "fl.lleg",
       "mass": null,
       "mass_confidence": "missing",
       "inertia_tensor": null,
@@ -75,7 +87,7 @@
       "com_confidence": "missing"
     },
     {
-      "name": "panda_link1",
+      "name": "fr.hip",
       "mass": null,
       "mass_confidence": "missing",
       "inertia_tensor": null,
@@ -84,7 +96,7 @@
       "com_confidence": "missing"
     },
     {
-      "name": "panda_link2",
+      "name": "fr.uleg",
       "mass": null,
       "mass_confidence": "missing",
       "inertia_tensor": null,
@@ -93,7 +105,7 @@
       "com_confidence": "missing"
     },
     {
-      "name": "panda_link3",
+      "name": "fr.lleg",
       "mass": null,
       "mass_confidence": "missing",
       "inertia_tensor": null,
@@ -102,7 +114,7 @@
       "com_confidence": "missing"
     },
     {
-      "name": "panda_link4",
+      "name": "hl.hip",
       "mass": null,
       "mass_confidence": "missing",
       "inertia_tensor": null,
@@ -111,7 +123,7 @@
       "com_confidence": "missing"
     },
     {
-      "name": "panda_link5",
+      "name": "hl.uleg",
       "mass": null,
       "mass_confidence": "missing",
       "inertia_tensor": null,
@@ -120,7 +132,7 @@
       "com_confidence": "missing"
     },
     {
-      "name": "panda_link6",
+      "name": "hl.lleg",
       "mass": null,
       "mass_confidence": "missing",
       "inertia_tensor": null,
@@ -129,7 +141,7 @@
       "com_confidence": "missing"
     },
     {
-      "name": "panda_link7",
+      "name": "hr.hip",
       "mass": null,
       "mass_confidence": "missing",
       "inertia_tensor": null,
@@ -138,7 +150,7 @@
       "com_confidence": "missing"
     },
     {
-      "name": "panda_link8",
+      "name": "hr.uleg",
       "mass": null,
       "mass_confidence": "missing",
       "inertia_tensor": null,
@@ -147,25 +159,7 @@
       "com_confidence": "missing"
     },
     {
-      "name": "frankie_hand",
-      "mass": null,
-      "mass_confidence": "missing",
-      "inertia_tensor": null,
-      "inertia_confidence": "missing",
-      "com_offset": null,
-      "com_confidence": "missing"
-    },
-    {
-      "name": "frankie_leftfinger",
-      "mass": null,
-      "mass_confidence": "missing",
-      "inertia_tensor": null,
-      "inertia_confidence": "missing",
-      "com_offset": null,
-      "com_confidence": "missing"
-    },
-    {
-      "name": "frankie_rightfinger",
+      "name": "hr.lleg",
       "mass": null,
       "mass_confidence": "missing",
       "inertia_tensor": null,
@@ -177,110 +171,120 @@
   "statics": {
     "joints": [
       {
-        "name": "panda_base_joint1",
+        "name": "fl.hx",
         "required_torque_gravity": null,
         "torque_confidence": "missing",
-        "declared_effort": 87.0,
+        "declared_effort": 1000.0,
         "margin": null,
         "status": "UNKNOWN",
         "subtree_mass": null,
         "summary": "Cannot assess \u2014 missing effort limit or mass data"
       },
       {
-        "name": "panda_base_joint2",
+        "name": "fl.hy",
         "required_torque_gravity": null,
         "torque_confidence": "missing",
-        "declared_effort": 87.0,
+        "declared_effort": 1000.0,
         "margin": null,
         "status": "UNKNOWN",
         "subtree_mass": null,
         "summary": "Cannot assess \u2014 missing effort limit or mass data"
       },
       {
-        "name": "panda_joint1",
+        "name": "fl.kn",
         "required_torque_gravity": null,
         "torque_confidence": "missing",
-        "declared_effort": 87.0,
+        "declared_effort": 1000.0,
         "margin": null,
         "status": "UNKNOWN",
         "subtree_mass": null,
         "summary": "Cannot assess \u2014 missing effort limit or mass data"
       },
       {
-        "name": "panda_joint2",
+        "name": "fr.hx",
         "required_torque_gravity": null,
         "torque_confidence": "missing",
-        "declared_effort": 87.0,
+        "declared_effort": 1000.0,
         "margin": null,
         "status": "UNKNOWN",
         "subtree_mass": null,
         "summary": "Cannot assess \u2014 missing effort limit or mass data"
       },
       {
-        "name": "panda_joint3",
+        "name": "fr.hy",
         "required_torque_gravity": null,
         "torque_confidence": "missing",
-        "declared_effort": 87.0,
+        "declared_effort": 1000.0,
         "margin": null,
         "status": "UNKNOWN",
         "subtree_mass": null,
         "summary": "Cannot assess \u2014 missing effort limit or mass data"
       },
       {
-        "name": "panda_joint4",
+        "name": "fr.kn",
         "required_torque_gravity": null,
         "torque_confidence": "missing",
-        "declared_effort": 87.0,
+        "declared_effort": 1000.0,
         "margin": null,
         "status": "UNKNOWN",
         "subtree_mass": null,
         "summary": "Cannot assess \u2014 missing effort limit or mass data"
       },
       {
-        "name": "panda_joint5",
+        "name": "hl.hx",
         "required_torque_gravity": null,
         "torque_confidence": "missing",
-        "declared_effort": 12.0,
+        "declared_effort": 1000.0,
         "margin": null,
         "status": "UNKNOWN",
         "subtree_mass": null,
         "summary": "Cannot assess \u2014 missing effort limit or mass data"
       },
       {
-        "name": "panda_joint6",
+        "name": "hl.hy",
         "required_torque_gravity": null,
         "torque_confidence": "missing",
-        "declared_effort": 12.0,
+        "declared_effort": 1000.0,
         "margin": null,
         "status": "UNKNOWN",
         "subtree_mass": null,
         "summary": "Cannot assess \u2014 missing effort limit or mass data"
       },
       {
-        "name": "panda_joint7",
+        "name": "hl.kn",
         "required_torque_gravity": null,
         "torque_confidence": "missing",
-        "declared_effort": 12.0,
+        "declared_effort": 1000.0,
         "margin": null,
         "status": "UNKNOWN",
         "subtree_mass": null,
         "summary": "Cannot assess \u2014 missing effort limit or mass data"
       },
       {
-        "name": "frankie_finger_joint1",
+        "name": "hr.hx",
         "required_torque_gravity": null,
         "torque_confidence": "missing",
-        "declared_effort": 20.0,
+        "declared_effort": 1000.0,
         "margin": null,
         "status": "UNKNOWN",
         "subtree_mass": null,
         "summary": "Cannot assess \u2014 missing effort limit or mass data"
       },
       {
-        "name": "frankie_finger_joint2",
+        "name": "hr.hy",
         "required_torque_gravity": null,
         "torque_confidence": "missing",
-        "declared_effort": 20.0,
+        "declared_effort": 1000.0,
+        "margin": null,
+        "status": "UNKNOWN",
+        "subtree_mass": null,
+        "summary": "Cannot assess \u2014 missing effort limit or mass data"
+      },
+      {
+        "name": "hr.kn",
+        "required_torque_gravity": null,
+        "torque_confidence": "missing",
+        "declared_effort": 1000.0,
         "margin": null,
         "status": "UNKNOWN",
         "subtree_mass": null,
@@ -308,16 +312,16 @@
     "com_height_ratio_class": null,
     "tipping_angle_deg": null,
     "status": "UNKNOWN",
-    "reason": "robot type 'unknown' \u2014 stability only computed for wheeled robots",
+    "reason": "robot type 'quadruped' \u2014 stability only computed for wheeled robots",
     "deep_validated": false
   },
   "workspace": {
-    "max_reach": 1.2550894658302805,
+    "max_reach": 0.6406510506177122,
     "reach_confidence": "estimated",
-    "vertical_reach": 1.6259242349577936,
-    "horizontal_reach": 1.0623687464943827,
+    "vertical_reach": 0.2225111775668302,
+    "horizontal_reach": 0.6406505684446597,
     "status": "PASS",
-    "reach_from_base": 1.6428117349602933,
+    "reach_from_base": 0.6406510506177122,
     "reason": null,
     "task": null,
     "task_target_height_m": null,

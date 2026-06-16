@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Literal, Optional
 
-Confidence = Literal["exact", "estimated", "guessed", "missing"]
+Confidence = Literal["exact", "estimated", "guessed", "missing", "simulated"]
 
 
 @dataclass
@@ -52,8 +52,11 @@ class StabilityReport:
     tip_direction: Optional[str] = None
     com_height_ratio: Optional[float] = None
     com_height_ratio_confidence: Confidence = "missing"
+    com_height_ratio_class: Optional[str] = None
+    tipping_angle_deg: Optional[float] = None
     status: str = "UNKNOWN"
     reason: Optional[str] = None
+    deep_validated: bool = False
 
 
 @dataclass
