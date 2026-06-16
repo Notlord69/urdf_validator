@@ -5,9 +5,9 @@
 | Field          | Value              |
 |----------------|--------------------|
 | PRD Version    | 1.0 - Draft        |
-| Status as of   | 2026-06-15         |
-| Current Build  | v0.4.0-dev         |
-| Current Phase  | Month 4 complete   |
+| Status as of   | 2026-06-16         |
+| Current Build  | v0.5.0-dev         |
+| Current Phase  | Month 5 in progress |
 
 ---
 
@@ -19,7 +19,7 @@
 | v0.2      | 2     | Chain Walker + COM + Gravity Torques     | **COMPLETE**    |
 | v0.3      | 3     | Stability — Support Polygon + COM Projection | **COMPLETE** |
 | v0.4      | 4     | Workspace + Task Checks + Full Report Pipeline | **COMPLETE** |
-| v0.5      | 5     | Hardening — Edge Cases, Bad URDFs, Mesh Failures | NOT STARTED |
+| v0.5      | 5     | Hardening — Edge Cases, Bad URDFs, Mesh Failures | **IN PROGRESS** |
 | v1.0      | 6     | Polish + Docs + Community Release        | NOT STARTED    |
 
 ---
@@ -53,7 +53,7 @@
 | Zero mass on non-fixed links            | WARNING  | **DONE**    | Skips fixed and root links                      |
 | Inertia not positive definite           | WARNING  | **DONE**    | Eigenvalue check; NaN/Inf guard included        |
 | Inverted joint limits                   | WARNING  | **DONE**    | `_check_inverted_limits` in `checks/schema.py`  |
-| Missing mesh files                      | INFO     | **DEFERRED**| Explicitly deferred to v0.5 (per PRD §3.2.2)   |
+| Missing mesh files                      | INFO     | **DONE**    | `_check_missing_mesh_files` in `checks/schema.py`; `package://` resolution searches URDF dir + 3 ancestors; skipped when `urdf_path` is empty |
 | No effort/velocity limits               | INFO     | **DONE**    | `_check_missing_limits` in `checks/schema.py`   |
 | Visual without collision                | INFO     | **DONE**    | `_check_visual_no_collision` in `checks/schema.py` |
 | High link count (>50)                   | INFO     | **DONE**    | `_check_high_link_count` in `checks/schema.py`  |
@@ -77,9 +77,9 @@
 |-------------------------------------------------------------|-------------|------------------------------------------------|
 | Mass-weighted average COM across all links                  | **DONE**    | `checks/statics.py` — `_compute_com()`         |
 | COM position [x, y, z] in world frame                       | **DONE**    | `StaticsReport.full_body_com` populated        |
-| COM height above ground plane                               | **PENDING** | Not extracted from full_body_com yet           |
-| Heaviest link by name and percentage                        | **PENDING** | Field exists (`heaviest_link_name`, `heaviest_link_pct`); never populated by `statics.py` |
-| Upper/lower body mass split (humanoid tipping warning)      | **PENDING** | Field exists (`mass_split_warning`); never populated by `statics.py` |
+| COM height above ground plane                               | **DONE**    | `com_height_above_ground = float(full_com[2])`; None when no masses |
+| Heaviest link by name and percentage                        | **DONE**    | `heaviest_link_name` / `heaviest_link_pct` populated; None when no masses |
+| Upper/lower body mass split (humanoid tipping warning)      | **PENDING** | Field exists (`mass_split_warning`); requires humanoid-specific design — deferred |
 
 ### 3.3.3 Gravity Torque Per Joint
 
@@ -89,15 +89,15 @@
 | Declared effort from URDF limits                            | **DONE**    | `JointStaticsReport.declared_effort`           |
 | Margin = declared_effort / required_torque                  | **DONE**    | `JointStaticsReport.margin`                    |
 | Per-joint status: PASS / WARN / FAIL                        | **DONE**    | PASS ≥1.5, WARN 1.0–1.5, FAIL <1.0            |
-| Plain-language summary ("Motor undersized by X kg")         | **PENDING** | Not yet implemented                            |
+| Plain-language summary ("Motor undersized by X kg")         | **DONE**    | `JointStaticsReport.summary` — "OK — margin X×", "Near limit", "Undersized — req Y Nm, declared Z Nm", "Cannot assess…" |
 
 ### 3.3.4 Effort Margin Summary
 
 | Item                                                        | Status      | Notes                                          |
 |-------------------------------------------------------------|-------------|------------------------------------------------|
-| Weakest joint identification                                | **PENDING** | Field exists (`weakest_joint_name`); never populated by `statics.py` |
+| Weakest joint identification                                | **DONE**    | `weakest_joint_name` = joint with lowest non-None margin; None when no margins available |
 | Overall effort status (PASS/WARN/FAIL)                      | **DONE**    | `StaticsReport.status` — FAIL if any joint fails |
-| Payload capacity estimate                                   | **PENDING** | Field exists (`payload_capacity_kg`); never populated by `statics.py` |
+| Payload capacity estimate                                   | **PENDING** | Requires arm geometry not available in statics context — deferred |
 
 ---
 
@@ -112,16 +112,10 @@
 | 2D convex hull via `shapely`                                | **DONE**            | `MultiPoint.convex_hull`; degenerates (line/point) return `None`     |
 | Humanoid foot contact patch extraction                      | **PENDING**         |                                                                       |
 | Unknown type fallback (lowest link positions)               | **PENDING**         |                                                                       |
-| Geometry-based wheel detection (cylindrical geometry fallback + caster inclusion) | **DEFERRED → v0.5** | See remark below |
+| Geometry-based wheel detection (cylindrical geometry fallback + caster inclusion) | **DONE** | `physics/support_polygon.py` — 3-pass `collect_wheel_contacts()`: (1) name match, (2) cylinder r/L > 0.3 fallback, (3) caster inclusion; committed in `e1f9ae4` |
 
-> **v0.5 remark — geometry heuristic for contact detection:**
-> TurtleBot3 and Fetch are both wheeled robots, yet `extract_wheeled_polygon()` currently returns `None` for both because each has only **2** links named `"wheel_*"` (plus an unnamed caster). Two contact points cannot form a convex polygon, so stability is correctly reported as `UNKNOWN`.
->
-> The root ambiguity: the name-matching heuristic is necessary but not sufficient. Differential-drive robots typically have 2 driven wheels + 1 or more passive casters, and casters rarely carry "wheel" in their name. The fix requires a geometry heuristic:
-> 1. **Cylindrical geometry fallback** — any link with `collision_geometry_type == "cylinder"` and radius-to-length ratio consistent with a wheel (r/L > some threshold, e.g. 0.3) is treated as a wheel contact, supplementing the name match.
-> 2. **Caster inclusion** — links with "caster" in their name that have cylindrical or spherical collision geometry are added as contact points.
->
-> This work is explicitly assigned to **v0.5 (hardening)**. Until then, robots with fewer than 3 name-matched wheel links report `[STABILITY] UNKNOWN` — which is honest, not a crash.
+> **v0.5 implementation note — geometry heuristic for contact detection:**
+> Implemented in `e1f9ae4`. `collect_wheel_contacts()` now runs three passes in priority order: name match (`"wheel"` substring), cylindrical geometry fallback (r/L > 0.3), and caster inclusion (`"caster"` in name + cylinder/sphere geometry). A seen-set prevents double-counting. TurtleBot3 (2 driven wheels + 1 caster) and Fetch (2 driven wheels + 1 caster) now produce valid support polygons and real stability margins instead of UNKNOWN.
 
 ### 3.4.2 COM Projection & Stability Check
 
@@ -286,8 +280,9 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 | `test_stability.py`        | `stability.run` — containment, margin, tip direction, degradation, reason strings per UNKNOWN branch, `collect_wheel_contacts`, formatter | **DONE** |
 | `test_robot_classifier.py` | `detect_robot_type` — keyword variants, priority, integration on TurtleBot3/Fetch | **DONE** |
 | `test_schema_new_checks.py`| Four new schema checks (inverted-limits, missing-limits, visual-no-collision, high-link-count) | **DONE** |
-| `test_arm_chain.py`         | `ArmChain`, `detect_arm_chains`, `build_ikpy_chain` — chain detection, DOF counting, ikpy FK | **DONE** |
-| `test_workspace.py`         | `workspace.run` — arm detection, reach metrics, UNKNOWN path, no-crash contract | **DONE** |
+| `test_schema_mesh_check.py`| Missing mesh file check — absolute/relative/package:// paths, ancestor search, extraction via `load_urdf`, no-crash on 6 reference URDFs | **DONE** |
+| `test_arm_chain.py`         | `ArmChain`, `detect_arm_chains`, `build_ikpy_chain` — chain detection, DOF counting, ikpy FK, base-joint stripping | **DONE** |
+| `test_workspace.py`         | `workspace.run` — arm detection, reach metrics, UNKNOWN path, no-crash contract, Franka reach regression | **DONE** |
 
 ---
 
@@ -344,9 +339,37 @@ Smoke test run 2026-06-15 with `urdf_validate <urdf> --output-dir /tmp/smoke_tes
 
 | # | URDF | Observation | Root cause | Planned fix |
 |---|---|---|---|---|
-| 1 | Franka Panda | Workspace reach 3.089 m (real: ~0.855 m) | `panda_base_joint2` is an unconstrained prismatic joint; sentinel clamps it to 2.0 m; Monte Carlo samples from full chain including base joints | Filter zero-origin base joints from arm chain or report reach from first non-base actuated link |
-| 2 | ANYmal, Spot | Classified as `'humanoid'` instead of `'quadruped'` | `robot_classifier.py` has no quadruped category; legged non-humanoids fall through to 'humanoid' | Add quadruped keyword heuristic (`"hip"`, `"lleg"`, `"uleg"`) to classifier |
+| 1 | Franka Panda | ~~Workspace reach 3.089 m (real: ~0.855 m)~~ **FIXED** | `detect_arm_chains` now strips leading joints whose child link name contains "base"; panda_base_joint1/2 excluded; reach now reported correctly | `physics/arm_chain.py` — n_strip loop strips base joints from chain front |
+| 2 | ANYmal, Spot | ~~Classified as `'humanoid'`~~ **FIXED** | `robot_classifier.py` now has a `quadruped` category with keywords (hip, lleg, rleg, uleg, lmleg, rmleg, thigh, shank); priority: wheeled > quadruped > humanoid | Task 2 complete |
 | 3 | PR2 | `r/l_shoulder_lift_joint` FAIL statics (49.5 Nm req vs 30 Nm declared) | Simplified statics model does not account for spring counterbalancing; real PR2 uses passive springs | Document model limitation in report |
+
+---
+
+## v0.5 Exit Criteria Check (Month 5)
+
+> _"Does not crash on any malformed input; gracefully degrades on unknown robot types; mesh failures reported, not thrown; geometry-based wheel contact detection implemented (TurtleBot3 and Fetch produce valid stability polygons)"_
+
+| Criterion                                                                 | Met?        | Notes |
+|---------------------------------------------------------------------------|-------------|-------|
+| Does not crash on any malformed input                                     | YES         | Verified on all 6 reference URDFs; bad_urdf fixtures pass |
+| Gracefully degrades on unknown robot types                                | YES         | `robot_classifier.py` now returns `"quadruped"` for ANYmal/Spot; Franka returns `"unknown"` with graceful fallback |
+| Mesh failures reported, not thrown                                        | IN PROGRESS | `_check_missing_mesh_files()` in `schema.py` + `mesh_filenames` field in `urdf_adapter.py` — implemented, awaiting commit |
+| Geometry-based wheel contact detection (TurtleBot3 and Fetch)             | YES         | `collect_wheel_contacts()` 3-pass heuristic committed (`e1f9ae4`); both robots now produce valid polygons |
+
+**v0.5 exit criteria: ~3/4 met — mesh failure reporting in progress**
+
+### v0.5 Work Log
+
+| Item | Status | Commit / Notes |
+|------|--------|----------------|
+| Geometry-based wheel detection — cylinder r/L > 0.3 fallback | **DONE** | `e1f9ae4` — `support_polygon.py` |
+| Caster inclusion — `"caster"` name + cylinder/sphere geometry | **DONE** | `e1f9ae4` — `support_polygon.py` |
+| Quadruped robot type detection (ANYmal, Spot) | **DONE** | `robot_classifier.py` — `_QUADRUPED_KEYWORDS` |
+| Franka base-joint stripping (reach inflation fix) | **DONE** | `arm_chain.py` — `n_strip` loop |
+| Missing mesh file check (`_check_missing_mesh_files`) | **IN PROGRESS** | `schema.py` + `urdf_adapter.py` mesh_filenames field — uncommitted |
+| `test_schema_mesh_check.py` | **IN PROGRESS** | New test file — uncommitted |
+| Joint summary strings (`_joint_summary`) | **IN PROGRESS** | `statics.py` — uncommitted |
+| COM height / heaviest link / weakest joint population | **IN PROGRESS** | `statics.py` — uncommitted |
 
 ---
 
@@ -360,3 +383,4 @@ Smoke test run 2026-06-15 with `urdf_validate <urdf> --output-dir /tmp/smoke_tes
 | 4 | Correct tolerance for MuJoCo torque verification           | OPEN — test written at 10%; empirical result pending |
 | 5 | SDF support                                                | DEFERRED to Future Plans     |
 | 6 | GitHub Actions integration docs                            | DEFERRED to Month 6 / docs/  |
+| 7 | Missing mesh check — integration test scope                | RESOLVED — no-crash guarantee is the integration tier contract. `test_schema_mesh_check.py` parametrizes all 6 URDFs and asserts only that no exception is raised and every INFO is a non-empty string. |

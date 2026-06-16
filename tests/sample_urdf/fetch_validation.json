@@ -1,0 +1,688 @@
+{
+  "urdf_path": "tests/sample_urdf/fetch.urdf",
+  "robot_name": "fetch",
+  "robot_type": "wheeled",
+  "timestamp": "2026-06-15T05:58:39.227313+00:00",
+  "validator_version": "0.1.0",
+  "schema": {
+    "status": "WARN",
+    "critical_issues": [],
+    "warnings": [
+      "Link 'r_gripper_finger_link' has non-positive-definite inertia tensor (min eigenvalue: 0.000000) \u2014 physically impossible",
+      "Link 'l_gripper_finger_link' has non-positive-definite inertia tensor (min eigenvalue: 0.000000) \u2014 physically impossible"
+    ],
+    "infos": []
+  },
+  "links": [
+    {
+      "name": "base_link",
+      "mass": 70.1294,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        1.225,
+        0.0099,
+        0.0062,
+        0.0099,
+        1.2853,
+        -0.0034,
+        0.0062,
+        -0.0034,
+        0.987
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "r_wheel_link",
+      "mass": 4.3542,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0045,
+        0.0,
+        0.0,
+        0.0,
+        0.005,
+        0.0,
+        0.0,
+        0.0,
+        0.0045
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "l_wheel_link",
+      "mass": 4.3542,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0045,
+        0.0,
+        0.0,
+        0.0,
+        0.005,
+        0.0,
+        0.0,
+        0.0,
+        0.0045
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "torso_lift_link",
+      "mass": 10.7796,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.3354,
+        0.0,
+        -0.0162,
+        0.0,
+        0.3354,
+        -0.0006,
+        -0.0162,
+        -0.0006,
+        0.0954
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "head_pan_link",
+      "mass": 2.2556,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0129,
+        0.0002,
+        0.0007,
+        0.0002,
+        0.0095,
+        -0.0,
+        0.0007,
+        -0.0,
+        0.0184
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "head_tilt_link",
+      "mass": 0.9087,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0061,
+        -0.0,
+        0.0002,
+        -0.0,
+        0.0014,
+        -0.0001,
+        0.0002,
+        -0.0001,
+        0.0061
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "shoulder_pan_link",
+      "mass": 2.5587,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0043,
+        -0.0001,
+        0.001,
+        -0.0001,
+        0.0087,
+        -0.0001,
+        0.001,
+        -0.0001,
+        0.0087
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "shoulder_lift_link",
+      "mass": 2.6615,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0028,
+        -0.0021,
+        -0.0,
+        -0.0021,
+        0.0111,
+        -0.0,
+        -0.0,
+        -0.0,
+        0.0112
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "upperarm_roll_link",
+      "mass": 2.3311,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0019,
+        -0.0001,
+        0.0,
+        -0.0001,
+        0.0045,
+        0.0,
+        0.0,
+        0.0,
+        0.0047
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "elbow_flex_link",
+      "mass": 2.1299,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0024,
+        -0.0016,
+        0.0,
+        -0.0016,
+        0.0082,
+        -0.0,
+        0.0,
+        -0.0,
+        0.0084
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "forearm_roll_link",
+      "mass": 1.6563,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0016,
+        -0.0003,
+        0.0,
+        -0.0003,
+        0.003,
+        -0.0,
+        0.0,
+        -0.0,
+        0.0035
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "wrist_flex_link",
+      "mass": 1.725,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0018,
+        -0.0001,
+        -0.0,
+        -0.0001,
+        0.0042,
+        0.0,
+        -0.0,
+        0.0,
+        0.0042
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "wrist_roll_link",
+      "mass": 0.1354,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0001,
+        0.0,
+        0.0,
+        0.0,
+        0.0001,
+        0.0,
+        0.0,
+        0.0,
+        0.0001
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "ati_link",
+      "mass": 0.255,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0001,
+        0.0,
+        0.0,
+        0.0,
+        0.0001,
+        0.0,
+        0.0,
+        0.0,
+        0.0001
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "gripper_link",
+      "mass": 1.5175,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.0013,
+        -0.0,
+        0.0,
+        -0.0,
+        0.0019,
+        -0.0,
+        0.0,
+        -0.0,
+        0.0024
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "finger_tip_link",
+      "mass": null,
+      "mass_confidence": "missing",
+      "inertia_tensor": null,
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "r_gripper_finger_link",
+      "mass": 0.0798,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.002,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "l_gripper_finger_link",
+      "mass": 0.0798,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.002,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "bellows_link",
+      "mass": 0.169374038216602,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.00331159128762117,
+        -8.9230964321455e-18,
+        -5.38622201018293e-08,
+        -8.9230964321455e-18,
+        0.00174447292786627,
+        -8.06964979976371e-17,
+        -5.38622201018293e-08,
+        -8.06964979976371e-17,
+        0.00169417568121457
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "bellows_link2",
+      "mass": 0.169374038216602,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.00331159128762117,
+        -8.9230964321455e-18,
+        -5.38622201018293e-08,
+        -8.9230964321455e-18,
+        0.00174447292786627,
+        -8.06964979976371e-17,
+        -5.38622201018293e-08,
+        -8.06964979976371e-17,
+        0.00169417568121457
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "estop_link",
+      "mass": 0.00196130439134723,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        3.02810026604417e-07,
+        -1.5862023118056e-08,
+        3.16561396557437e-08,
+        -1.5862023118056e-08,
+        2.93322917127605e-07,
+        -4.28833522751273e-08,
+        3.16561396557437e-08,
+        -4.28833522751273e-08,
+        2.28513272627183e-07
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "laser_link",
+      "mass": 0.00833634573995571,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        1.01866461240801e-06,
+        -5.88447626567756e-08,
+        7.83857244757914e-08,
+        -5.88447626567756e-08,
+        5.10039589974707e-07,
+        -7.12664289617235e-09,
+        7.83857244757914e-08,
+        -7.12664289617235e-09,
+        1.28270671527309e-06
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "torso_fixed_link",
+      "mass": 13.2775,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.3861,
+        0.0015,
+        -0.0102,
+        0.0015,
+        0.3388,
+        0.0117,
+        -0.0102,
+        0.0117,
+        0.1018
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "head_camera_link",
+      "mass": null,
+      "mass_confidence": "missing",
+      "inertia_tensor": null,
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "head_camera_rgb_frame",
+      "mass": null,
+      "mass_confidence": "missing",
+      "inertia_tensor": null,
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "head_camera_rgb_optical_frame",
+      "mass": null,
+      "mass_confidence": "missing",
+      "inertia_tensor": null,
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "head_camera_depth_frame",
+      "mass": null,
+      "mass_confidence": "missing",
+      "inertia_tensor": null,
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "head_camera_depth_optical_frame",
+      "mass": null,
+      "mass_confidence": "missing",
+      "inertia_tensor": null,
+      "inertia_confidence": "missing",
+      "com_offset": null,
+      "com_confidence": "missing"
+    }
+  ],
+  "statics": {
+    "joints": [
+      {
+        "name": "r_wheel_joint",
+        "required_torque_gravity": 0.0,
+        "torque_confidence": "estimated",
+        "declared_effort": 8.85,
+        "margin": null,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      },
+      {
+        "name": "l_wheel_joint",
+        "required_torque_gravity": 0.0,
+        "torque_confidence": "estimated",
+        "declared_effort": 8.85,
+        "margin": null,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      },
+      {
+        "name": "torso_lift_joint",
+        "required_torque_gravity": 288.5380776298098,
+        "torque_confidence": "estimated",
+        "declared_effort": 450.0,
+        "margin": 1.5595861859776565,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      },
+      {
+        "name": "head_pan_joint",
+        "required_torque_gravity": 1.2570878935717827e-16,
+        "torque_confidence": "estimated",
+        "declared_effort": 0.32,
+        "margin": null,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      },
+      {
+        "name": "head_tilt_joint",
+        "required_torque_gravity": 0.07220621069999995,
+        "torque_confidence": "estimated",
+        "declared_effort": 0.68,
+        "margin": 9.417472450191886,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      },
+      {
+        "name": "shoulder_pan_joint",
+        "required_torque_gravity": 4.921156302986022e-15,
+        "torque_confidence": "estimated",
+        "declared_effort": 33.82,
+        "margin": null,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      },
+      {
+        "name": "shoulder_lift_joint",
+        "required_torque_gravity": 63.61584331545001,
+        "torque_confidence": "estimated",
+        "declared_effort": 131.76,
+        "margin": 2.0711821636419336,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      },
+      {
+        "name": "upperarm_roll_joint",
+        "required_torque_gravity": 0.25155862871164225,
+        "torque_confidence": "estimated",
+        "declared_effort": 76.94,
+        "margin": 305.8531539706997,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      },
+      {
+        "name": "elbow_flex_joint",
+        "required_torque_gravity": 26.03458433295001,
+        "torque_confidence": "estimated",
+        "declared_effort": 66.18,
+        "margin": 2.5420033273295233,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      },
+      {
+        "name": "forearm_roll_joint",
+        "required_torque_gravity": 0.4361024848116423,
+        "torque_confidence": "estimated",
+        "declared_effort": 29.35,
+        "margin": 67.30069426840483,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      },
+      {
+        "name": "wrist_flex_joint",
+        "required_torque_gravity": 6.417623765249997,
+        "torque_confidence": "estimated",
+        "declared_effort": 25.7,
+        "margin": 4.004597486558775,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      },
+      {
+        "name": "wrist_roll_joint",
+        "required_torque_gravity": 0.019127650011642287,
+        "torque_confidence": "estimated",
+        "declared_effort": 7.36,
+        "margin": 384.78328469625086,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      },
+      {
+        "name": "r_gripper_finger_joint",
+        "required_torque_gravity": 0.5769934168429536,
+        "torque_confidence": "estimated",
+        "declared_effort": 60.0,
+        "margin": 103.98732160289246,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      },
+      {
+        "name": "l_gripper_finger_joint",
+        "required_torque_gravity": 0.5769934168429536,
+        "torque_confidence": "estimated",
+        "declared_effort": 60.0,
+        "margin": 103.98732160289246,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      },
+      {
+        "name": "bellows_joint",
+        "required_torque_gravity": 1.6615593149048655,
+        "torque_confidence": "estimated",
+        "declared_effort": 5.0,
+        "margin": 3.009221491612101,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": null
+      }
+    ],
+    "full_body_com": [
+      0.04495702162791339,
+      0.0006928490342374053,
+      0.25974662916817154
+    ],
+    "com_confidence": "estimated",
+    "total_mass": 121.53824572656455,
+    "mass_confidence": "estimated",
+    "status": "PASS",
+    "com_height_above_ground": null,
+    "heaviest_link_name": null,
+    "heaviest_link_pct": null,
+    "mass_split_warning": null,
+    "weakest_joint_name": null,
+    "payload_capacity_kg": null
+  },
+  "stability": {
+    "stable": true,
+    "margin_mm": 43.66562162791339,
+    "tip_direction": "W",
+    "com_height_ratio": null,
+    "com_height_ratio_confidence": "missing",
+    "status": "PASS",
+    "reason": null
+  },
+  "workspace": {
+    "max_reach": 2.1823987765169854,
+    "reach_confidence": "estimated",
+    "vertical_reach": 2.1580719221645186,
+    "horizontal_reach": 1.1651099863199696,
+    "status": "PASS",
+    "reach_from_base": 2.1823987765169854,
+    "reason": null,
+    "task": null,
+    "task_target_height_m": null,
+    "task_height_reachable": null,
+    "task_com_stable_during_reach": null,
+    "task_com_shift_estimate_m": null,
+    "task_reason": null
+  },
+  "overall_status": "WARN",
+  "critical_issues": [],
+  "warnings": [],
+  "unknowns": [],
+  "confidence_level": "MEDIUM"
+}

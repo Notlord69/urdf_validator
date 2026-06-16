@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import collections
-from typing import Set
+import os
+from typing import Optional, Set
 
 from urdf_validator_main.parser.urdf_adapter import ParsedRobot
 from urdf_validator_main.report.models import ValidationReport
@@ -29,6 +30,7 @@ def run(parsed: ParsedRobot, report: ValidationReport) -> None:
     _check_inverted_limits(parsed, report)
     _check_missing_limits(parsed, report)
     _check_visual_no_collision(parsed, report)
+    _check_missing_mesh_files(parsed, report)
     _check_high_link_count(parsed, report)
     _set_schema_status(report)
 
@@ -259,6 +261,54 @@ def _check_missing_limits(parsed: ParsedRobot, report: ValidationReport) -> None
 # ---------------------------------------------------------------------------
 # Geometry checks
 # ---------------------------------------------------------------------------
+
+def _resolve_mesh_path(filename: str, urdf_dir: str) -> bool:
+    """Return True if the mesh file can be found on disk, False otherwise.
+
+    For package:// URIs the package name prefix is stripped and the remaining
+    relative path is searched in urdf_dir and up to three ancestor directories.
+    This covers the common workspace layout (src/pkg/urdf/robot.urdf with
+    meshes at src/pkg/meshes/) without requiring a ROS installation.
+    """
+    if filename.startswith("package://"):
+        after_scheme = filename[len("package://"):]
+        slash = after_scheme.find("/")
+        if slash == -1:
+            return False
+        relative = after_scheme[slash + 1:]
+        search = urdf_dir
+        for _ in range(4):
+            if os.path.exists(os.path.join(search, relative)):
+                return True
+            parent = os.path.dirname(search)
+            if parent == search:
+                break
+            search = parent
+        return False
+    elif os.path.isabs(filename):
+        return os.path.exists(filename)
+    else:
+        return os.path.exists(os.path.join(urdf_dir, filename))
+
+
+def _check_missing_mesh_files(parsed: ParsedRobot, report: ValidationReport) -> None:
+    """Emit INFO for every mesh filename that cannot be resolved to an existing file.
+
+    Skipped silently when report.urdf_path is empty (e.g., unit-test robots
+    built without a file path). Package path resolution searches relative to
+    the URDF directory and its ancestors; a ROS install is not required.
+    """
+    if not report.urdf_path:
+        return
+    urdf_dir = os.path.dirname(os.path.abspath(report.urdf_path))
+    for lnk in parsed.links:
+        for filename in lnk.mesh_filenames:
+            if not _resolve_mesh_path(filename, urdf_dir):
+                report.schema.infos.append(
+                    f"Link '{lnk.name}': mesh '{filename}' not found"
+                    " — package:// resolution requires ROS workspace to be sourced"
+                )
+
 
 def _check_visual_no_collision(parsed: ParsedRobot, report: ValidationReport) -> None:
     """Flag movable links that have a visual geometry but no collision geometry."""

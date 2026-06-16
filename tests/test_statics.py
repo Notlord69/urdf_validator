@@ -314,3 +314,127 @@ def test_no_crash_on_zero_total_mass():
     )
     report = _run(robot)
     assert report.statics is not None
+
+
+# ---------------------------------------------------------------------------
+# Pending StaticsReport fields (Task 5)
+# ---------------------------------------------------------------------------
+
+def _three_link_arm(m_root=1.0, m_mid=3.0, m_tip=0.5) -> ParsedRobot:
+    """Three-link chain at known z positions for COM-height testing.
+
+    root (z=0) → j1 (fixed, z=1) → mid (z=1) → j2 (fixed, z=2) → tip (z=2)
+    COM z = (1*0 + 3*1 + 0.5*2) / 4.5 = 4/4.5 ≈ 0.889 m
+    """
+    return ParsedRobot(
+        name="r",
+        links=[_link("root", m_root), _link("mid", m_mid), _link("tip", m_tip)],
+        joints=[
+            _joint("j1", "root", "mid", xyz=[0.0, 0.0, 1.0], joint_type="fixed"),
+            _joint("j2", "mid", "tip", xyz=[0.0, 0.0, 1.0], joint_type="fixed"),
+        ],
+    )
+
+
+def test_com_height_above_ground_populated():
+    report = _run(_three_link_arm())
+    assert report.statics.com_height_above_ground is not None
+
+
+def test_com_height_above_ground_correct_value():
+    # root at z=0 (m=1), mid at z=1 (m=3), tip at z=2 (m=0.5)
+    # COM z = (1*0 + 3*1 + 0.5*2) / 4.5 = 4.0/4.5
+    report = _run(_three_link_arm())
+    expected = 4.0 / 4.5
+    assert report.statics.com_height_above_ground == pytest.approx(expected, rel=1e-3)
+
+
+def test_com_height_none_when_no_mass():
+    robot = ParsedRobot(
+        name="r",
+        links=[_link("a", None), _link("b", None)],
+        joints=[_joint("j", "a", "b")],
+    )
+    report = _run(robot)
+    assert report.statics.com_height_above_ground is None
+
+
+def test_heaviest_link_name_correct():
+    # mid has mass=3.0 — heaviest
+    report = _run(_three_link_arm(m_root=1.0, m_mid=3.0, m_tip=0.5))
+    assert report.statics.heaviest_link_name == "mid"
+
+
+def test_heaviest_link_pct_correct():
+    # mid mass=3.0, total=4.5 → 66.7%
+    report = _run(_three_link_arm(m_root=1.0, m_mid=3.0, m_tip=0.5))
+    assert report.statics.heaviest_link_pct == pytest.approx(3.0 / 4.5 * 100, rel=1e-3)
+
+
+def test_heaviest_link_none_when_no_masses():
+    robot = ParsedRobot(
+        name="r",
+        links=[_link("a", None), _link("b", None)],
+        joints=[_joint("j", "a", "b")],
+    )
+    report = _run(robot)
+    assert report.statics.heaviest_link_name is None
+    assert report.statics.heaviest_link_pct is None
+
+
+def test_weakest_joint_name_is_lowest_margin_joint():
+    # Chain: root → j1(y-axis, effort=30) → l1 → j_fix1(+1m) → l2
+    #              → j2(y-axis, effort=6) → l3 → j_fix2(+0.5m) → ee(1kg)
+    #
+    # j1: subtree COM at [1.5,0,0], torque=1*9.81*1.5=14.72 Nm, margin=30/14.72≈2.04 (PASS)
+    # j2: subtree COM at [1.5,0,0], j2 at [1.0,0,0], torque=1*9.81*0.5=4.91 Nm, margin=6/4.91≈1.22 (WARN)
+    # → j2 is weakest
+    robot = ParsedRobot(
+        name="r",
+        links=[
+            _link("root", 0.0), _link("l1", 0.0),
+            _link("l2", 0.0), _link("l3", 0.0), _link("ee", 1.0),
+        ],
+        joints=[
+            _joint("j1", "root", "l1", axis=[0.0, 1.0, 0.0], effort=30.0),
+            _joint("j_fix1", "l1", "l2", joint_type="fixed", xyz=[1.0, 0.0, 0.0]),
+            _joint("j2", "l2", "l3", axis=[0.0, 1.0, 0.0], effort=6.0),
+            _joint("j_fix2", "l3", "ee", joint_type="fixed", xyz=[0.5, 0.0, 0.0]),
+        ],
+    )
+    report = _run(robot)
+    assert report.statics.weakest_joint_name == "j2"
+
+
+def test_weakest_joint_name_none_when_no_margins():
+    # No effort limits → no margins → weakest_joint_name is None
+    robot = ParsedRobot(
+        name="r",
+        links=[_link("root", 0.0), _link("arm", 1.0)],
+        joints=[_joint("j1", "root", "arm", axis=[0.0, 1.0, 0.0], effort=None)],
+    )
+    report = _run(robot)
+    assert report.statics.weakest_joint_name is None
+
+
+def test_joint_summary_pass_contains_margin():
+    report = _run(_arm_robot(effort=20.0))
+    j = next(j for j in report.statics.joints if j.name == "j1")
+    assert j.status == "PASS"
+    assert j.summary is not None
+    assert "2." in j.summary or "margin" in j.summary.lower()
+
+
+def test_joint_summary_fail_mentions_undersized():
+    report = _run(_arm_robot(effort=8.0))
+    j = next(j for j in report.statics.joints if j.name == "j1")
+    assert j.status == "FAIL"
+    assert j.summary is not None
+    assert "undersized" in j.summary.lower() or "8" in j.summary
+
+
+def test_joint_summary_unknown_when_no_effort():
+    report = _run(_arm_robot(effort=None))
+    j = next(j for j in report.statics.joints if j.name == "j1")
+    assert j.summary is not None
+    assert "missing" in j.summary.lower() or "unknown" in j.summary.lower()

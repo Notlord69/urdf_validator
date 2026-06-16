@@ -181,3 +181,88 @@ def test_build_chain_declared_limits_respected():
     )
     chain, _ = build_ikpy_chain(arm)
     assert chain.links[1].bounds == pytest.approx((-1.57, 1.57))
+
+
+# ---------------------------------------------------------------------------
+# Base-joint stripping (Franka Panda reach-inflation fix)
+# ---------------------------------------------------------------------------
+
+def _franka_like_robot() -> ParsedRobot:
+    """Minimal Franka-like structure: two base joints then a real 2-DOF arm.
+
+    panda_base0
+      └─ panda_base_joint1 (revolute, xyz=0) → panda_base1
+           └─ panda_base_joint2 (prismatic, xyz=0) → panda_base_arm
+                └─ panda_base_arm_joint (fixed, xyz=[0.15,0,0.38]) → panda_link0
+                     └─ j1 (revolute) → panda_link1
+                          └─ j2 (revolute) → ee
+    """
+    links = [
+        _link("panda_base0"), _link("panda_base1"), _link("panda_base_arm"),
+        _link("panda_link0"), _link("panda_link1"), _link("ee"),
+    ]
+    joints = [
+        _joint("panda_base_joint1", "panda_base0", "panda_base1",
+               joint_type="revolute"),
+        _joint("panda_base_joint2", "panda_base1", "panda_base_arm",
+               joint_type="prismatic"),
+        _joint("panda_base_arm_joint", "panda_base_arm", "panda_link0",
+               joint_type="fixed", xyz=[0.15, 0.0, 0.38]),
+        _joint("j1", "panda_link0", "panda_link1",
+               joint_type="revolute", xyz=[0.0, 0.0, 0.333],
+               lower=-2.897, upper=2.897),
+        _joint("j2", "panda_link1", "ee",
+               joint_type="revolute", lower=-1.762, upper=1.762),
+    ]
+    return ParsedRobot("franka_like", links, joints)
+
+
+def test_base_joints_excluded_from_dof_count():
+    # panda_base_joint1 (revolute) and panda_base_joint2 (prismatic) both
+    # have "base" in their child link name — only j1 and j2 should count.
+    chains = detect_arm_chains(_franka_like_robot())
+    assert len(chains) == 1
+    assert chains[0].n_dof == 2
+
+
+def test_base_joints_stripped_from_chain_joint_list():
+    chains = detect_arm_chains(_franka_like_robot())
+    joint_names = [j.name for j in chains[0].joints]
+    assert "panda_base_joint1" not in joint_names
+    assert "panda_base_joint2" not in joint_names
+
+
+def test_root_link_updated_after_base_strip():
+    # After stripping, root should be panda_base_arm (parent of first kept joint)
+    chains = detect_arm_chains(_franka_like_robot())
+    assert chains[0].root_link == "panda_base_arm"
+
+
+def test_robot_without_base_links_unaffected():
+    # Standard 3-DOF arm with no "base" in any child link name — unchanged
+    robot = ParsedRobot(
+        name="plain_arm",
+        links=[_link("shoulder"), _link("upper"), _link("lower"), _link("tip")],
+        joints=[
+            _joint("j1", "shoulder", "upper", joint_type="revolute", lower=-3.14, upper=3.14),
+            _joint("j2", "upper", "lower", joint_type="revolute", lower=-3.14, upper=3.14),
+            _joint("j3", "lower", "tip", joint_type="revolute", lower=-3.14, upper=3.14),
+        ],
+    )
+    chains = detect_arm_chains(robot)
+    assert chains[0].n_dof == 3
+    assert chains[0].root_link == "shoulder"
+
+
+def test_base_only_chain_produces_no_candidate():
+    # All joints have "base" child links — stripping leaves no actuated DOF
+    robot = ParsedRobot(
+        name="all_base",
+        links=[_link("base_root"), _link("base_mid"), _link("base_tip")],
+        joints=[
+            _joint("j1", "base_root", "base_mid", joint_type="revolute"),
+            _joint("j2", "base_mid", "base_tip", joint_type="revolute"),
+        ],
+    )
+    chains = detect_arm_chains(robot)
+    assert chains == []

@@ -94,6 +94,25 @@ def _joint_status(margin: Optional[float]) -> str:
     return "PASS"
 
 
+def _joint_summary(
+    status: str,
+    margin: Optional[float],
+    req: Optional[float],
+    declared: Optional[float],
+) -> str:
+    if status == "PASS":
+        return f"OK — margin {margin:.2f}×" if margin is not None else "OK — torque negligible"
+    if status == "WARN":
+        return f"Near limit — margin {margin:.2f}×"
+    if status == "FAIL":
+        return (
+            f"Undersized — requires {req:.1f} Nm, declared {declared:.1f} Nm"
+            if req is not None and declared is not None
+            else "Undersized — insufficient effort capacity"
+        )
+    return "Cannot assess — missing effort limit or mass data"
+
+
 def run(parsed: ParsedRobot, report: ValidationReport) -> None:
     try:
         frames = walk(parsed)
@@ -111,6 +130,19 @@ def run(parsed: ParsedRobot, report: ValidationReport) -> None:
         report.statics.total_mass = total_mass if total_mass > 0.0 else None
         report.statics.com_confidence = "estimated" if has_masses else "missing"
         report.statics.mass_confidence = "estimated" if has_masses else "missing"
+
+        if full_com is not None:
+            report.statics.com_height_above_ground = float(full_com[2])
+
+        if total_mass > 0.0:
+            heaviest = max(
+                (lnk for lnk in parsed.links if lnk.mass is not None and lnk.mass > 0),
+                key=lambda lnk: lnk.mass,
+                default=None,
+            )
+            if heaviest is not None:
+                report.statics.heaviest_link_name = heaviest.name
+                report.statics.heaviest_link_pct = heaviest.mass / total_mass * 100.0
 
         joint_statuses: List[str] = []
         for joint in parsed.joints:
@@ -131,6 +163,8 @@ def run(parsed: ParsedRobot, report: ValidationReport) -> None:
                     status = "PASS"
                 joint_statuses.append(status)
 
+                summary = _joint_summary(status, margin, req, declared)
+
                 report.statics.joints.append(
                     JointStaticsReport(
                         name=joint.name,
@@ -139,11 +173,13 @@ def run(parsed: ParsedRobot, report: ValidationReport) -> None:
                         declared_effort=declared,
                         margin=margin,
                         status=status,
+                        summary=summary,
                     )
                 )
             except Exception:
                 report.statics.joints.append(
-                    JointStaticsReport(name=joint.name, status="UNKNOWN")
+                    JointStaticsReport(name=joint.name, status="UNKNOWN",
+                                       summary="Cannot assess — computation error")
                 )
 
         if "FAIL" in joint_statuses:
@@ -154,6 +190,14 @@ def run(parsed: ParsedRobot, report: ValidationReport) -> None:
             report.statics.status = "PASS"
         else:
             report.statics.status = "UNKNOWN"
+
+        joints_with_margin = [
+            (j.margin, j.name)
+            for j in report.statics.joints
+            if j.margin is not None
+        ]
+        if joints_with_margin:
+            report.statics.weakest_joint_name = min(joints_with_margin, key=lambda x: x[0])[1]
 
     except Exception:
         report.statics.status = "UNKNOWN"

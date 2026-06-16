@@ -25,6 +25,7 @@ class ParsedLink:
     collision_geometry_dims: Optional[List[float]] = None # same convention
     inertia_origin_xyz: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     inertia_origin_rpy: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    mesh_filenames: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -138,6 +139,23 @@ def _geometry_dims(geoms) -> Optional[List[float]]:
     return None
 
 
+def _mesh_filenames_from_geoms(geoms) -> List[str]:
+    """Return the filename string from every Mesh geometry in a visuals/collisions list."""
+    filenames: List[str] = []
+    if not geoms:
+        return filenames
+    for geom in geoms:
+        try:
+            g = geom.geometry
+            if g is None:
+                continue
+            if type(g).__name__ == "Mesh" and g.filename:
+                filenames.append(g.filename)
+        except Exception:
+            continue
+    return filenames
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -230,6 +248,17 @@ def load_urdf(path: str) -> Union[ParsedRobot, ParseError]:
                             inertia_origin_rpy = list(o.rpy)
                 except Exception:
                     pass
+                # Collect all mesh filenames (visual + collision), deduped, order-preserving
+                _seen: set = set()
+                _mesh_fnames: List[str] = []
+                for _f in (
+                    _mesh_filenames_from_geoms(lnk.visuals)
+                    + _mesh_filenames_from_geoms(lnk.collisions)
+                ):
+                    if _f not in _seen:
+                        _seen.add(_f)
+                        _mesh_fnames.append(_f)
+
                 parsed_links.append(
                     ParsedLink(
                         name=lnk.name,
@@ -244,6 +273,7 @@ def load_urdf(path: str) -> Union[ParsedRobot, ParseError]:
                         collision_geometry_dims=_geometry_dims(lnk.collisions),
                         inertia_origin_xyz=inertia_origin_xyz,
                         inertia_origin_rpy=inertia_origin_rpy,
+                        mesh_filenames=_mesh_fnames,
                     )
                 )
             except Exception:

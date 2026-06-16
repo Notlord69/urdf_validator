@@ -1,11 +1,13 @@
 """Tests for robot type detection — detect_robot_type(ParsedRobot) -> str.
 
 Heuristic rules:
-  - Any link name containing "wheel"           → "wheeled"
-  - Any link name containing "foot"/"ankle"/"sole" → "humanoid"
-  - Neither                                    → "unknown"
+  - Any link name containing "wheel"                              → "wheeled"
+  - Any link name containing quadruped keywords                   → "quadruped"
+    (hip, lleg, rleg, uleg, lmleg, rmleg, thigh, shank)
+  - Any link name containing "foot"/"ankle"/"sole"               → "humanoid"
+  - Neither                                                       → "unknown"
   - Matching is case-insensitive on link names.
-  - "wheeled" takes priority over "humanoid" when both keywords present.
+  - Priority: wheeled > quadruped > humanoid.
 """
 from __future__ import annotations
 
@@ -98,6 +100,55 @@ def test_wheel_takes_priority_over_foot():
 
 
 # ---------------------------------------------------------------------------
+# quadruped detection
+# ---------------------------------------------------------------------------
+
+def test_hip_in_name_returns_quadruped():
+    assert detect_robot_type(_robot("LF_HIP", "base")) == "quadruped"
+
+
+def test_thigh_in_name_returns_quadruped():
+    assert detect_robot_type(_robot("LF_THIGH", "base")) == "quadruped"
+
+
+def test_shank_in_name_returns_quadruped():
+    assert detect_robot_type(_robot("LF_SHANK", "base")) == "quadruped"
+
+
+def test_uleg_in_name_returns_quadruped():
+    assert detect_robot_type(_robot("fl.uleg", "base")) == "quadruped"
+
+
+def test_lleg_in_name_returns_quadruped():
+    assert detect_robot_type(_robot("fl.lleg", "base")) == "quadruped"
+
+
+def test_rleg_in_name_returns_quadruped():
+    assert detect_robot_type(_robot("hr.rleg", "base")) == "quadruped"
+
+
+def test_lmleg_in_name_returns_quadruped():
+    assert detect_robot_type(_robot("lmleg_link", "base")) == "quadruped"
+
+
+def test_rmleg_in_name_returns_quadruped():
+    assert detect_robot_type(_robot("rmleg_link", "base")) == "quadruped"
+
+
+def test_quadruped_keywords_case_insensitive():
+    assert detect_robot_type(_robot("LF_HIP", "RF_THIGH", "base")) == "quadruped"
+
+
+def test_quadruped_beats_humanoid_foot():
+    # ANYmal has both HIP/THIGH links and FOOT links; quadruped must win
+    assert detect_robot_type(_robot("LF_HIP", "LF_FOOT")) == "quadruped"
+
+
+def test_wheel_beats_quadruped():
+    assert detect_robot_type(_robot("wheel_link", "LF_HIP")) == "wheeled"
+
+
+# ---------------------------------------------------------------------------
 # integration tests against real URDFs
 # ---------------------------------------------------------------------------
 
@@ -114,3 +165,15 @@ def test_fetch_detected_as_wheeled():
     from urdf_validator_main.parser.urdf_adapter import load_urdf
     parsed = load_urdf(os.path.join(SAMPLE_DIR, "fetch.urdf"))
     assert detect_robot_type(parsed) == "wheeled"
+
+
+def test_anymal_detected_as_quadruped():
+    from urdf_validator_main.parser.urdf_adapter import load_urdf
+    parsed = load_urdf(os.path.join(SAMPLE_DIR, "ANYmal.urdf"))
+    assert detect_robot_type(parsed) == "quadruped"
+
+
+def test_spot_detected_as_quadruped():
+    from urdf_validator_main.parser.urdf_adapter import load_urdf
+    parsed = load_urdf(os.path.join(SAMPLE_DIR, "Spot.urdf"))
+    assert detect_robot_type(parsed) == "quadruped"

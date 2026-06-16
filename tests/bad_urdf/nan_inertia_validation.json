@@ -2,7 +2,7 @@
   "urdf_path": "/home/notlord/ros2_ws/urdf_validator/tests/bad_urdf/nan_inertia.urdf",
   "robot_name": "nan_bot",
   "robot_type": "unknown",
-  "timestamp": "2026-06-15T04:33:19.343341+00:00",
+  "timestamp": "2026-06-16T04:07:31.675388+00:00",
   "validator_version": "0.1.0",
   "schema": {
     "status": "WARN",
@@ -52,7 +52,7 @@
         "margin": null,
         "status": "PASS",
         "subtree_mass": null,
-        "summary": null
+        "summary": "OK \u2014 torque negligible"
       }
     ],
     "full_body_com": [
@@ -64,9 +64,9 @@
     "total_mass": 1.0,
     "mass_confidence": "estimated",
     "status": "PASS",
-    "com_height_above_ground": null,
-    "heaviest_link_name": null,
-    "heaviest_link_pct": null,
+    "com_height_above_ground": 0.0,
+    "heaviest_link_name": "arm_link",
+    "heaviest_link_pct": 100.0,
     "mass_split_warning": null,
     "weakest_joint_name": null,
     "payload_capacity_kg": null

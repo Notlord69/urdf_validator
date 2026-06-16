@@ -49,6 +49,20 @@ def detect_arm_chains(parsed: ParsedRobot, max_chains: int = 2) -> List[ArmChain
             current = j.parent
 
         joints_in_order = list(reversed(joints_reversed))
+
+        # Strip leading joints whose child link name contains "base" — these
+        # are mounting/pedestal joints (e.g., Franka panda_base_joint*) that
+        # inflate reach when sampled by Monte Carlo.
+        n_strip = 0
+        for j in joints_in_order:
+            if "base" in j.child.lower():
+                n_strip += 1
+            else:
+                break
+        if n_strip:
+            joints_in_order = joints_in_order[n_strip:]
+            current = joints_in_order[0].parent if joints_in_order else current
+
         n_actuated = sum(1 for j in joints_in_order if j.joint_type in _ACTUATED)
         if n_actuated >= 1:
             candidates.append(ArmChain(

@@ -325,3 +325,30 @@ def test_com_stability_unknown_when_no_total_mass():
         task_name="pick_from_table", task_height_m=0.5)
     assert report.workspace.task_com_stable_during_reach is None
     assert report.workspace.task_reason is not None
+
+
+# ---------------------------------------------------------------------------
+# Franka Panda reach inflation regression test
+# ---------------------------------------------------------------------------
+
+SAMPLE_DIR = __import__("os").path.join(__import__("os").path.dirname(__file__), "sample_urdf")
+
+
+def test_franka_panda_max_reach_is_reasonable():
+    """Franka Panda real reach is ~0.855 m. Before the fix, panda_base_joint2
+    (an unconstrained prismatic, clamped to 2 m) inflated max_reach to 3.089 m.
+    After stripping base joints the reported reach must be under 2.0 m.
+    """
+    from urdf_validator_main.parser.urdf_adapter import ParsedRobot, load_urdf
+    path = __import__("os").path.join(SAMPLE_DIR, "Franka_Panda.urdf")
+    result = load_urdf(path)
+    if not isinstance(result, ParsedRobot):
+        pytest.skip("Franka_Panda.urdf did not parse")
+    report = ValidationReport()
+    run(result, report, n_samples=5000)
+    assert report.workspace.status == "PASS"
+    assert report.workspace.max_reach is not None
+    assert report.workspace.max_reach < 2.0, (
+        f"Franka reach {report.workspace.max_reach:.3f} m exceeds 2.0 m — "
+        "base joints may not be stripped correctly"
+    )
