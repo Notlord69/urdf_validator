@@ -6,6 +6,8 @@ A physics-aware URDF validation tool for the ROS 2 community.
 
 `check_urdf`, the only official ROS 2 validation tool, checks syntax only. A URDF that passes `check_urdf` can still silently fail in any physics-based simulator — collapsing robots, undersized motors, unstable configurations. `urdf_validator` catches this entire class of errors before you ever launch a simulation.
 
+The tool is designed to work on **any** URDF, not just a curated set of reference robots. When the link-name heuristics cannot reliably classify your robot, you can declare what the tool cannot infer — robot type, ground-contact links, arm chain boundaries — and the heuristics continue running as a cross-check rather than the sole decision-maker.
+
 ## What it checks
 
 | Phase | What it analyses |
@@ -14,6 +16,7 @@ A physics-aware URDF validation tool for the ROS 2 community.
 | **Statics** | Full-body centre of mass, gravity torque per actuated joint, motor effort margins (PASS / WARN / FAIL), weakest joint identification |
 | **Stability** | Support polygon from wheel/caster contacts, COM-over-polygon containment, signed margin in mm, tip direction, COM height ratio, tipping angle |
 | **Workspace** | Monte Carlo FK reach envelope (max / vertical / horizontal), task-specific reachability, COM stability during reach |
+| **User overrides** | `--robot-type`, `--contact-links`, `--arm-root`/`--arm-tip` let you declare what heuristics cannot reliably infer; declared values are labeled `exact` and heuristics run as a cross-check |
 | **Deep (optional)** | MuJoCo simulation cross-validation of gravity torques and COM; `SIMULATED` confidence badge |
 
 ## Installation
@@ -163,7 +166,7 @@ Exit 2. The shoulder lift joints on both arms are undersized: the URDF declares 
 Full report: ANYmal_validation.json
 ```
 
-Exit 0. Stability is UNKNOWN for legged robots — support polygon computation requires declared foot contacts, which are not a standard URDF field. Workspace shows leg reach envelope.
+Exit 0. Stability is UNKNOWN for legged robots — support polygon computation requires declared foot contacts, which are not a standard URDF field. Use `--contact-links` to supply foot contact link names explicitly and get a real stability margin. Workspace shows leg reach envelope.
 
 ---
 
@@ -224,6 +227,26 @@ Full report: Franka_Panda_validation.json
 Exit 1. No masses declared in this public URDF variant — a common issue with arm-only files intended for kinematic use only. Workspace is still computed from joint limits alone.
 
 ---
+
+## User-declared robot info
+
+When heuristics cannot reliably classify your robot — non-English link names, non-standard wheel geometry, hexapod naming conventions — you can declare the information directly:
+
+```bash
+# Legged robot with known foot contact links
+urdf_validate my_hexapod.urdf \
+  --robot-type legged \
+  --contact-links foot_fl,foot_fr,foot_ml,foot_mr,foot_rl,foot_rr
+
+# Robot with a non-obvious arm chain
+urdf_validate my_robot.urdf \
+  --arm-root arm_base_link \
+  --arm-tip tool_flange
+```
+
+Declared values are used directly and labeled `exact` in the JSON output. The corresponding heuristic still runs in the background: if it disagrees, a warning is added to the report naming the mismatch. The declared value always wins — the disagreement is surfaced, never silently resolved.
+
+If you omit these flags, heuristic output is used and labeled `estimated` to make clear it is an unverified inference, not a verified value.
 
 ## CI integration
 
@@ -315,10 +338,13 @@ Computed at the declared `--pose` (default: zero pose).
 
 ### `[STABILITY]`
 
-Available for wheeled robots. Uses a 3-pass wheel contact detection:
+Available for wheeled robots by default. Contact point detection runs three passes in priority order:
+
 1. Links named `*wheel*`
-2. Cylindrical links with radius/length > 0.3 (geometry fallback)
+2. Cylindrical links with a wheel-like radius-to-length ratio (r/L > 0.3)
 3. Links named `*caster*` with cylinder or sphere geometry
+
+Use `--contact-links` to supply contact link names directly and bypass this heuristic entirely — required for legged robots and any configuration where link naming does not follow these conventions.
 
 Reports signed margin in mm (positive = stable, negative = tipping), tip direction, COM height ratio, and tipping angle.
 
@@ -332,7 +358,9 @@ Reports signed margin in mm (positive = stable, negative = tipping), tip directi
 
 ### `[WORKSPACE]`
 
-Monte Carlo FK sampling over joint limits. Computes `max_reach`, `vertical_reach`, `horizontal_reach`, and `reach_from_base`. With `--task`, also reports whether the arm can reach the target height and whether the COM stays over the support polygon during full extension.
+Monte Carlo FK sampling over joint limits. The arm chain is detected automatically via a BFS + DOF heuristic. Use `--arm-root` / `--arm-tip` to specify the chain boundary explicitly when auto-detection picks the wrong chain (e.g. a gripper chain instead of the full arm, or an arm on a non-standard robot).
+
+Computes `max_reach`, `vertical_reach`, `horizontal_reach`, and `reach_from_base`. With `--task`, also reports whether the arm can reach the target height and whether the COM stays over the support polygon during full extension.
 
 ### `[OVERALL]`
 
@@ -352,8 +380,8 @@ Every physics estimate carries an explicit label:
 
 | Label | Meaning |
 |---|---|
-| `exact` | Value read directly from a declared URDF field |
-| `estimated` | Derived from declared masses and geometry via analytical formula |
+| `exact` | Value read directly from a declared URDF field, or supplied via a user override flag |
+| `estimated` | Derived from declared masses and geometry via analytical formula, or from a heuristic that ran without a user declaration to cross-check against |
 | `guessed` | Heuristic estimate (e.g. mesh geometry — no explicit dims available) |
 | `missing` | No data available |
 | `simulated` | Cross-validated against MuJoCo simulation (`--deep` mode) |
@@ -370,6 +398,8 @@ Every run writes `<robot>_validation.json` containing the full `ValidationReport
 {
   "overall_status": "WARN",
   "confidence_level": "MEDIUM",
+  "robot_type": "wheeled",
+  "robot_type_confidence": "exact",
   "statics": {
     "full_body_com": [0.045, 0.001, 0.260],
     "total_mass": 121.538,
@@ -383,10 +413,13 @@ Every run writes `<robot>_validation.json` containing the full `ValidationReport
     "com_height_ratio": 0.69,
     "com_height_ratio_class": "stable",
     "tipping_angle_deg": 35.8,
+    "contact_confidence": "estimated",
     "status": "PASS"
   }
 }
 ```
+
+`robot_type_confidence` and `contact_confidence` are `"exact"` when the value was supplied via `--robot-type` or `--contact-links`, and `"estimated"` when derived from the heuristic alone.
 
 ---
 
@@ -399,7 +432,13 @@ Every run writes `<robot>_validation.json` containing the full `ValidationReport
 | v0.3 | 3 | **Complete** | Robot type detection, support polygon, COM projection stability check |
 | v0.4 | 4 | **Complete** | Workspace FK, task reachability, full report pipeline, JSON export |
 | v0.5 | 5 | **Complete** | Pose flags, geometry contact detection, COM height ratio, `--deep` MuJoCo wiring, JSON schema docs, performance (PR2: 12.5s → 4.1s) |
-| v1.0 | 6 | Next | Public release — ROS Discourse announcement, pip package |
+| v0.6 | 6 | **Complete** | `--robot-type`, `--contact-links`, `--arm-root`/`--arm-tip` user override flags; heuristic cross-check and mismatch warnings; `exact` vs `estimated` confidence labeling |
+| v0.7 | 7 | Next | Capability-profile architecture (arm_only / wheeled / legged / aerial) with N/A-vs-UNKNOWN distinction; `--payload-mass` flag for payload-augmented gravity torque |
+| v0.8 | 8 | Planned | Orientation-aware reachability (position + orientation, not position alone) |
+| v0.9 | 9 | Planned | Real-pose COM stability during reach (replaces midpoint approximation); basic self-collision/clearance checks |
+| v0.10 | 10 | Planned | Structured task-query interface for AI agents and programmatic callers |
+| v0.11 | 11 | Planned | Hardening on extended scope — all new categories validated across reference robots |
+| v1.0 | 12 | Planned | Public release — ROS Discourse announcement, pip package |
 
 ---
 
