@@ -43,6 +43,9 @@ class StaticsReport:
     mass_split_warning: Optional[str] = None
     weakest_joint_name: Optional[str] = None
     payload_capacity_kg: Optional[float] = None
+    payload_mass: Optional[float] = None
+    payload_link: Optional[str] = None
+    reason: Optional[str] = None
 
 
 @dataclass
@@ -75,6 +78,9 @@ class WorkspaceReport:
     task_com_stable_during_reach: Optional[bool] = None
     task_com_shift_estimate_m: Optional[float] = None
     task_reason: Optional[str] = None
+    orientation_reachable: Optional[bool] = None
+    orientation_confidence: Confidence = "missing"
+    orientation_tolerance_deg: Optional[float] = None
 
 
 @dataclass

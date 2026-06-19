@@ -84,6 +84,13 @@ def test_workspace_report_has_task_fields():
     assert r.task_reason is None
 
 
+def test_workspace_report_orientation_fields_default():
+    r = WorkspaceReport()
+    assert r.orientation_reachable is None
+    assert r.orientation_confidence == "missing"
+    assert r.orientation_tolerance_deg is None
+
+
 def test_schema_report_defaults():
     r = SchemaReport()
     assert r.status == "UNKNOWN"
