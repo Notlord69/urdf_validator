@@ -94,6 +94,42 @@ def detect_arm_chains(parsed: ParsedRobot, max_chains: int = 2) -> List[ArmChain
     return top[:max_chains]
 
 
+def build_chain_from_bounds(
+    parsed: ParsedRobot, root_link: str, tip_link: str
+) -> ArmChain:
+    """Build an ArmChain from explicit root/tip links, bypassing the DOF heuristic."""
+    link_names = {lnk.name for lnk in parsed.links}
+    parent_joint_of: Dict[str, ParsedJoint] = {}
+    for j in parsed.joints:
+        if j.parent in link_names and j.child in link_names:
+            parent_joint_of[j.child] = j
+
+    joints_reversed: List[ParsedJoint] = []
+    current = tip_link
+    visited: set = set()
+    while current != root_link:
+        if current in visited:
+            raise ValueError(f"cycle detected near link '{current}'")
+        if current not in parent_joint_of:
+            raise ValueError(
+                f"no path from '{tip_link}' to '{root_link}'"
+                f" — reached '{current}' which has no parent joint"
+            )
+        visited.add(current)
+        j = parent_joint_of[current]
+        joints_reversed.append(j)
+        current = j.parent
+
+    joints_in_order = list(reversed(joints_reversed))
+    n_actuated = sum(1 for j in joints_in_order if j.joint_type in _ACTUATED)
+    return ArmChain(
+        root_link=root_link,
+        joints=joints_in_order,
+        ee_link_name=tip_link,
+        n_dof=n_actuated,
+    )
+
+
 def build_ikpy_chain(arm: ArmChain):
     """Return (ikpy.chain.Chain, active_links_mask: List[bool])."""
     from ikpy.chain import Chain

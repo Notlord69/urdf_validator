@@ -4,10 +4,10 @@
 
 | Field          | Value              |
 |----------------|--------------------|
-| PRD Version    | 1.0 - Draft        |
-| Status as of   | 2026-06-16         |
-| Current Build  | v0.5.0             |
-| Current Phase  | Month 5 complete   |
+| PRD Version    | 1.1 - Draft (scope revision) |
+| Status as of   | 2026-06-19         |
+| Current Build  | v0.6.0             |
+| Current Phase  | Month 6 complete — Month 7 planning |
 
 ---
 
@@ -20,7 +20,13 @@
 | v0.3      | 3     | Stability — Support Polygon + COM Projection | **COMPLETE** |
 | v0.4      | 4     | Workspace + Task Checks + Full Report Pipeline | **COMPLETE** |
 | v0.5      | 5     | Hardening — Edge Cases, Bad URDFs, Mesh Failures | **COMPLETE**    |
-| v1.0      | 6     | Polish + Docs + Community Release        | NOT STARTED    |
+| v0.6      | 6     | User-Declared Robot Info Overrides (§3.7.1)                       | **COMPLETE** |
+| v0.7      | 7     | Capability Profiles + Payload-Augmented Statics (§3.7.2, §3.7.3) | NOT STARTED |
+| v0.8      | 8     | Orientation-Aware Reachability (§3.8 sub-check)                   | NOT STARTED |
+| v0.9      | 9     | Real-Pose Stability + Self-Collision/Clearance (§3.8 sub-check)   | NOT STARTED |
+| v0.10     | 10    | Structured Task-Query Interface (§3.8)                            | NOT STARTED |
+| v0.11     | 11    | Hardening on Extended Scope                                        | NOT STARTED |
+| v1.0      | 12    | Polish + Docs + Community Release *(relocated from Month 6)*       | NOT STARTED |
 
 ---
 
@@ -223,6 +229,76 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 
 ---
 
+## Phase 6 — User-Declared Robot Info & Capability Profiles (§3.7)
+
+### 3.7.1 User-Declared Override Flags
+
+| Item                                                                                      | Status      | Notes                                                                 |
+|-------------------------------------------------------------------------------------------|-------------|-----------------------------------------------------------------------|
+| `--robot-type {wheeled,legged,humanoid,arm_only,aerial,unknown}` CLI flag                 | **DONE**    | `cli.py` — user-declared value used directly; heuristic still runs as cross-check; labeled `exact`; mismatch warning emitted when disagreement detected |
+| `--contact-links "link_a,link_b,link_c"` CLI flag                                         | **DONE**    | `cli.py` + `checks/stability.py` — bypasses `collect_wheel_contacts()` 3-pass heuristic; link names validated before report creation; `contact_confidence="exact"`; cross-check warning when heuristic disagrees |
+| `--arm-root <link_name>` / `--arm-tip <link_name>` CLI flags                              | **DONE**    | `cli.py` + `checks/workspace.py` + `physics/arm_chain.py` — `build_chain_from_bounds()` traces tip→root; bypasses `detect_arm_chains()` BFS; link names validated; cross-check warning when heuristic tip or DOF differs |
+| User-declared values labeled `exact` confidence                                            | **DONE**    | `robot_type_confidence="exact"` in `ValidationReport`; `contact_confidence="exact"` in `StabilityReport` when `--contact-links` declared |
+| Heuristic-vs-declared mismatch WARNING added to report                                    | **DONE**    | `report.warnings` appended; shown as `[WARN]` in terminal; included in JSON `warnings` array; verified on all 6 reference URDFs |
+| New module `physics/capability_profiles.py`                                                | NOT STARTED | Deferred to v0.7 — additive, no impact on v0.6 deliverables |
+
+### 3.7.2 Capability-Profile Model
+
+| Item                                                                                      | Status      | Notes                                                                 |
+|-------------------------------------------------------------------------------------------|-------------|-----------------------------------------------------------------------|
+| Capability-profile table (arm_only / wheeled / legged / aerial / ground_vehicle)          | NOT STARTED | Maps robot_type → {locomotion_model, has_manipulator, force_model, ground_contact} flags |
+| N/A vs UNKNOWN distinction in report schema                                               | NOT STARTED | N/A = check does not apply to this robot category; UNKNOWN = tool could not determine |
+| `ValidationReport` and sub-report dataclasses extended to carry N/A                       | NOT STARTED | Extends §3.6.1 schema |
+| 3-step Recognize / Decide / Build lifecycle for new robot categories                       | NOT STARTED | Recognize alone enables correct N/A reporting before physics module exists |
+
+### 3.7.3 Payload-Augmented Statics
+
+| Item                                                                                      | Status      | Notes                                                                 |
+|-------------------------------------------------------------------------------------------|-------------|-----------------------------------------------------------------------|
+| `--payload-mass <kg>` CLI flag                                                             | NOT STARTED | Adds end-effector point mass as additional force term in gravity torque calculation |
+| `--payload-link <link_name>` optional flag                                                 | NOT STARTED | Specifies load attachment point; defaults to terminal link |
+| `required_torque_gravity` recomputed with payload term included                            | NOT STARTED | Underlying cross-product math (§3.3.3) unchanged; only input extended |
+| Per-joint PASS/WARN/FAIL margins applied to payload-augmented torque value                 | NOT STARTED | Same thresholds as §3.3.3: PASS ≥1.5×, WARN 1.0–1.5×, FAIL <1.0× |
+| Resolves previously-PENDING payload capacity estimate (§3.3.4)                             | NOT STARTED | |
+
+### 3.7.4 Confidence Labeling Extensions
+
+| Item                                                                                      | Status      | Notes                                                                 |
+|-------------------------------------------------------------------------------------------|-------------|-----------------------------------------------------------------------|
+| Assignment rule clarified for user-declared override mechanism                             | NOT STARTED | No new Confidence states added; `calibrated` tier deferred to v2.1 |
+
+---
+
+## Phase 7 — Structured Task-Query Interface for AI & Programmatic Callers (§3.8)
+
+### 3.8.1 Task-Query Schema (`api/task_schema.py`)
+
+| Item                                                                                                                    | Status      | Notes                                                                 |
+|-------------------------------------------------------------------------------------------------------------------------|-------------|-----------------------------------------------------------------------|
+| Request dataclass: URDF path + task description (target_position, target_orientation, object_mass_kg, terrain_angle_deg) | NOT STARTED | |
+| Response dataclass: structured PASS/FAIL/N/A/UNKNOWN per sub-check                                                      | NOT STARTED | Each result includes geometric reason (numbers), bottleneck link/joint, confidence label |
+| New module `api/task_schema.py`                                                                                          | NOT STARTED | Additive — no changes to existing modules |
+| Schema documented (mirrors `docs/json_schema.md` pattern)                                                               | NOT STARTED | |
+
+### 3.8.2 Task-Query Runner (`api/task_runner.py`)
+
+| Item                                                                                      | Status      | Notes                                                                 |
+|-------------------------------------------------------------------------------------------|-------------|-----------------------------------------------------------------------|
+| `api/task_runner.py` orchestrates task query against existing Phases 1–6                  | NOT STARTED | No new physics; calls existing deterministic pipeline with task-derived parameters |
+| Orientation-aware reachability sub-check (position + orientation, not position alone)      | NOT STARTED | Extends workspace sampling (§3.5.1); validated on ≥2 arm-bearing reference robots |
+| COM-during-reach with real sampled extended pose (replaces midpoint approximation)         | NOT STARTED | Replaces `task_com_stable_during_reach` midpoint approx in `workspace.py:128–135` |
+| Self-collision / target-clearance geometric check                                          | NOT STARTED | New geometric check for arm-bearing robots |
+| New module `api/task_runner.py`                                                            | NOT STARTED | Additive — no changes to existing modules |
+
+### 3.8.3 Scenario Sweeps
+
+| Item                                                                                                                        | Status      | Notes                                                                 |
+|-----------------------------------------------------------------------------------------------------------------------------|-------------|-----------------------------------------------------------------------|
+| Single task query swept across list of parameter variations (terrain angle, payload mass, target height)                     | NOT STARTED | Orchestration over existing pipeline — not new physics |
+| Sweep results returned as list of structured reports                                                                         | NOT STARTED | Natural-language synthesis across sweep is calling agent's responsibility |
+
+---
+
 ## CLI Entry Point (§3.2.1 / §3.6.2)
 
 | Feature                                                     | Status      | Notes                                               |
@@ -236,6 +312,9 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 | `--joint-angles` flag                                      | **DONE**    | Required with `--pose custom`; rejected otherwise; parsed in `cli.py` |
 | `--task` / `--height` flags                               | **DONE**    | Wired into `workspace.run()` via `task_name` / `task_height_m` |
 | `--deep` flag                                              | **DONE**    | `cli.py` — fires `run_deep(report, urdf_path)`; auto-triggers on negative margin |
+| `--robot-type` flag                                        | **DONE**    | All 6 values; `robot_type_confidence="exact"`; heuristic cross-check; mismatch `[WARN]` |
+| `--contact-links` flag                                     | **DONE**    | Comma-separated link names; link validation before report creation; `contact_confidence="exact"`; heuristic cross-check |
+| `--arm-root` / `--arm-tip` flags                          | **DONE**    | Both-or-neither enforced; link validation; `build_chain_from_bounds()` bypasses BFS; heuristic cross-check |
 
 ---
 
@@ -270,7 +349,7 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 |----------------------------|---------------------------------------------------------------|----------|
 | `test_schema_checks.py`    | All schema checks; clean/broken/loop/physics cases            | **DONE** |
 | `test_urdf_adapter.py`     | `load_urdf` IR extraction and no-crash contract               | **DONE** |
-| `test_cli.py`              | CLI exit codes, argparse, pipeline wiring; `--pose limits`/`custom` no-crash; `--joint-angles` parsing and guard; `_parse_joint_angles` unit tests; `--deep` flag accepted/default/no-crash when MuJoCo absent | **DONE** |
+| `test_cli.py`              | CLI exit codes, argparse, pipeline wiring; `--pose limits`/`custom` no-crash; `--joint-angles` parsing and guard; `_parse_joint_angles` unit tests; `--deep` flag accepted/default/no-crash when MuJoCo absent; `--robot-type` all 6 values + mismatch warning + JSON confidence; `--contact-links` validation + stability integration + mismatch warning; `--arm-root`/`--arm-tip` both-or-neither guard + link validation + mismatch warning (81 tests total) | **DONE** |
 | `test_formatter.py`        | `format_report` output for schema and physics sections        | **DONE** |
 | `test_models.py`           | `ValidationReport` and sub-report dataclass defaults          | **DONE** |
 | `test_imports.py`          | Full import surface smoke test                                | **DONE** |
@@ -401,6 +480,59 @@ NFR ceiling: 30 s. Worst case (PR2): 4.1 s — **7× headroom**.
 
 ---
 
+## v0.6 Exit Criteria Check (Month 6) — 2026-06-19
+
+> _"`--robot-type`, `--contact-links`, `--arm-root`/`--arm-tip` flags implemented; heuristic-vs-declared mismatch warnings working; existing heuristics unchanged and still run as cross-check"_
+
+| Criterion                                                                                                          | Met? |
+|--------------------------------------------------------------------------------------------------------------------|------|
+| `--robot-type` flag implemented (all 6 values: wheeled/legged/humanoid/arm_only/aerial/unknown)                    | YES  |
+| `--contact-links` flag implemented; bypasses geometry heuristic                                                    | YES  |
+| `--arm-root` / `--arm-tip` flags implemented; bypasses BFS arm detection                                          | YES  |
+| User-declared values labeled `exact`; heuristic-only output remains `estimated`                                    | YES  |
+| Heuristic-vs-declared mismatch WARNING emitted when disagreement detected                                          | YES  |
+| All existing heuristics unchanged; still run as cross-check when user declaration present                          | YES  |
+| All 6 reference URDFs pass without regression                                                                      | YES  |
+
+**v0.6 exit criteria: MET (7/7)**
+
+### v0.6 Regression Smoke Test (heuristic-only, 2026-06-19)
+
+| URDF | Exit | Stability | Workspace max reach |
+|---|---|---|---|
+| Fetch | 1 | STABLE 43.7 mm | 2.182 m |
+| TurtleBot3 | 0 | STABLE 4.0 mm | UNKNOWN (no arm) |
+| PR2 | 2 | STABLE 208.5 mm | 1.887 m |
+| ANYmal | 0 | UNKNOWN (quadruped, not wheeled) | 0.960 m |
+| Spot | 1 | UNKNOWN (quadruped, not wheeled) | 0.623 m |
+| Franka_Panda | 1 | UNKNOWN (unknown type) | 1.255 m |
+
+All exit codes and key values match v0.5 baseline — zero regressions.
+
+### v0.6 Override Flag Verification
+
+| Test | Flag | Result | Warning fired? |
+|---|---|---|---|
+| Fetch `--robot-type wheeled` | agree with heuristic | STABLE 43.7 mm, exact confidence | NO (correct) |
+| TurtleBot3 `--robot-type legged` | mismatch (heuristic=wheeled) | stability UNKNOWN (legged) | YES |
+| ANYmal `--robot-type legged` | agree (quadruped→legged normalized) | stability UNKNOWN (legged) | NO (correct) |
+| Spot `--robot-type wheeled` | mismatch (heuristic=quadruped→legged) | stability UNKNOWN (no wheels) | YES |
+| Fetch `--contact-links r_wheel,l_wheel,ati_link` | agree with heuristic | STABLE 43.7 mm, exact confidence | NO (correct) |
+| Fetch `--contact-links r_wheel,l_wheel,gripper_link` | mismatch (heuristic→ati_link) | STABLE 43.7 mm, exact confidence | YES |
+| Franka `--arm-root panda_link0 --arm-tip panda_link7` | mismatch (heuristic=8-DOF/finger) | workspace 1.139 m (7-DOF chain) | YES |
+| PR2 `--arm-root r_shoulder_pan_link --arm-tip r_gripper_r_finger_tip_link` | mismatch (heuristic=11-DOF) | workspace 0.988 m (8-DOF chain) | YES |
+
+### v0.6 Work Log
+
+| Task | Status | Notes |
+|---|---|---|
+| Task 1 — `--robot-type` flag | **DONE** | `cli.py`; `robot_type_confidence="exact"`; normalized cross-check via `_HEURISTIC_TO_CLI_TYPE` |
+| Task 2 — `--contact-links` flag | **DONE** | `cli.py` + `checks/stability.py`; link-name validation + `contact_confidence="exact"`; cross-check vs `collect_wheel_contact_names()` |
+| Task 3 — `--arm-root`/`--arm-tip` flags | **DONE** | `physics/arm_chain.py` — `build_chain_from_bounds()`; `checks/workspace.py` — explicit chain path + heuristic cross-check |
+| Task 4 — Regression pass | **DONE** | All 6 reference URDFs verified; all 8 override scenarios verified; PRD_status.md updated |
+
+---
+
 ## Open Questions Status (§7)
 
 | # | Question                                                   | Status    |
@@ -412,3 +544,4 @@ NFR ceiling: 30 s. Worst case (PR2): 4.1 s — **7× headroom**.
 | 5 | SDF support                                                | DEFERRED to Future Plans     |
 | 6 | GitHub Actions integration docs                            | DEFERRED to Month 6 / docs/  |
 | 7 | Missing mesh check — integration test scope                | RESOLVED — no-crash guarantee is the integration tier contract. `test_schema_mesh_check.py` parametrizes all 6 URDFs and asserts only that no exception is raised and every INFO is a non-empty string. |
+| 7 (v1.1) | Should `--contact-links` (§3.7.1) accept raw XY coordinates in addition to link names? | DEFERRED — link-name-only covers the realistic case; coordinate-based input deferred pending real user reports surfacing the need (§8, Future Plans) |

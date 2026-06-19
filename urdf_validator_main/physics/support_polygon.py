@@ -75,6 +75,86 @@ def collect_wheel_contacts(
     return pts
 
 
+def collect_wheel_contact_names(
+    parsed: ParsedRobot,
+    frames: Dict[str, LinkFrame],
+) -> List[str]:
+    """Return the link names that collect_wheel_contacts() would select.
+
+    Mirrors the 3-pass logic of collect_wheel_contacts() but returns names
+    instead of XY positions, for use in user-declaration cross-check comparisons.
+    """
+    names: List[str] = []
+    seen: set = set()
+
+    for link in parsed.links:
+        if "wheel" not in link.name.lower():
+            continue
+        if frames.get(link.name) is None:
+            continue
+        names.append(link.name)
+        seen.add(link.name)
+
+    for link in parsed.links:
+        if link.name in seen:
+            continue
+        if link.collision_geometry_type != "cylinder":
+            continue
+        dims = link.collision_geometry_dims
+        if dims is None or len(dims) < 2:
+            continue
+        radius, length = dims[0], dims[1]
+        if length <= 0 or radius / length <= 0.3:
+            continue
+        if frames.get(link.name) is None:
+            continue
+        names.append(link.name)
+        seen.add(link.name)
+
+    for link in parsed.links:
+        if link.name in seen:
+            continue
+        if "caster" not in link.name.lower():
+            continue
+        if link.collision_geometry_type not in ("cylinder", "sphere"):
+            continue
+        if frames.get(link.name) is None:
+            continue
+        names.append(link.name)
+        seen.add(link.name)
+
+    return names
+
+
+def extract_declared_polygon(
+    contact_links: List[str],
+    frames: Dict[str, LinkFrame],
+) -> Optional["Polygon"]:
+    """Return convex hull of explicitly declared contact link world positions, or None.
+
+    Returns None when shapely is absent, fewer than 3 links are present in the
+    kinematic tree, or the hull degenerates to a line/point.
+    """
+    if not _SHAPELY_OK:
+        return None
+
+    pts: List[tuple] = []
+    for name in contact_links:
+        frame = frames.get(name)
+        if frame is None:
+            continue
+        center = frame.T_world[:3, 3]
+        pts.append((float(center[0]), float(center[1])))
+
+    if len(pts) < 3:
+        return None
+
+    hull = MultiPoint(pts).convex_hull
+    if hull.geom_type != "Polygon":
+        return None
+    return hull
+
+
 def extract_wheeled_polygon(
     parsed: ParsedRobot,
     frames: Dict[str, LinkFrame],

@@ -53,6 +53,10 @@ urdf_validate <urdf_file> [options]
 | `--height M` | float | — | Target height in metres. Required with `--task custom`. |
 | `--output-dir DIR` | path | alongside input | Directory for the JSON validation report. |
 | `--deep` | flag | off | Run MuJoCo simulation pass to cross-validate gravity torques and COM. Auto-triggers when stability margin is negative. Requires `pip install mujoco`. |
+| `--robot-type TYPE` | `wheeled` \| `legged` \| `humanoid` \| `arm_only` \| `aerial` \| `unknown` | — | Declare the robot category explicitly. The link-name heuristic still runs as a cross-check; a mismatch is reported as a warning but does not override this declaration. |
+| `--contact-links LINKS` | `"l1,l2,l3"` | — | Comma-separated list of ground-contact link names. Bypasses the geometry heuristic for stability polygon construction; useful for legged robots or non-standard wheel naming. |
+| `--arm-root LINK` | link name | — | Root link of the arm chain. Bypasses the DOF-heuristic arm detection. Must be used together with `--arm-tip`. |
+| `--arm-tip LINK` | link name | — | End-effector link of the arm chain. Bypasses the DOF-heuristic arm detection. Must be used together with `--arm-root`. |
 
 ### Exit codes
 

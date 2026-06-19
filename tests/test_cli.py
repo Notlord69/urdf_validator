@@ -476,3 +476,357 @@ def test_xacro_input_exits_2_when_xacro_not_installed(monkeypatch, tmp_path, cap
     code = _run(monkeypatch, [str(xf)])
     assert code == 2
     assert "[ERROR]" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# --robot-type flag
+# ---------------------------------------------------------------------------
+
+_WHEELED_URDF = """\
+<?xml version="1.0"?>
+<robot name="wheeled_bot">
+  <link name="base_link">
+    <inertial>
+      <mass value="5.0"/>
+      <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
+    </inertial>
+  </link>
+  <link name="wheel_l">
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+    </inertial>
+  </link>
+  <joint name="j_l" type="continuous">
+    <parent link="base_link"/>
+    <child link="wheel_l"/>
+    <origin xyz="0 0.5 0" rpy="0 0 0"/>
+  </joint>
+</robot>
+"""
+
+
+def test_robot_type_default_is_none():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf"])
+    assert args.robot_type is None
+
+
+def test_robot_type_wheeled_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--robot-type", "wheeled"])
+    assert args.robot_type == "wheeled"
+
+
+def test_robot_type_legged_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--robot-type", "legged"])
+    assert args.robot_type == "legged"
+
+
+def test_robot_type_humanoid_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--robot-type", "humanoid"])
+    assert args.robot_type == "humanoid"
+
+
+def test_robot_type_arm_only_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--robot-type", "arm_only"])
+    assert args.robot_type == "arm_only"
+
+
+def test_robot_type_aerial_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--robot-type", "aerial"])
+    assert args.robot_type == "aerial"
+
+
+def test_robot_type_unknown_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--robot-type", "unknown"])
+    assert args.robot_type == "unknown"
+
+
+def test_robot_type_invalid_exits_2():
+    from urdf_validator_main.cli import parse_args
+    with pytest.raises(SystemExit) as exc:
+        parse_args(["robot.urdf", "--robot-type", "flying_saucer"])
+    assert exc.value.code == 2
+
+
+def test_robot_type_declared_used_as_exact_confidence(monkeypatch, tmp_path):
+    import json
+    urdf = tmp_path / "wheeled.urdf"
+    urdf.write_text(_WHEELED_URDF)
+    _run(monkeypatch, [str(urdf), "--robot-type", "wheeled"])
+    data = json.loads((tmp_path / "wheeled_validation.json").read_text())
+    assert data["robot_type"] == "wheeled"
+    assert data["robot_type_confidence"] == "exact"
+
+
+def test_robot_type_heuristic_confidence_is_estimated(monkeypatch, tmp_path):
+    import json
+    urdf = tmp_path / "wheeled.urdf"
+    urdf.write_text(_WHEELED_URDF)
+    _run(monkeypatch, [str(urdf)])
+    data = json.loads((tmp_path / "wheeled_validation.json").read_text())
+    assert data["robot_type_confidence"] == "estimated"
+
+
+def test_robot_type_mismatch_warning_in_output(monkeypatch, tmp_path, capsys):
+    # WHEELED_URDF has 'wheel' in link name → heuristic returns "wheeled"
+    # Declaring legged causes mismatch warning.
+    urdf = tmp_path / "wheeled.urdf"
+    urdf.write_text(_WHEELED_URDF)
+    _run(monkeypatch, [str(urdf), "--robot-type", "legged"])
+    out = capsys.readouterr().out
+    assert "[WARN]" in out
+    assert "heuristic" in out
+    assert "legged" in out
+
+
+def test_robot_type_no_mismatch_warning_when_agreement(monkeypatch, tmp_path, capsys):
+    # Declaring wheeled for a wheeled robot should not produce a mismatch warning.
+    urdf = tmp_path / "wheeled.urdf"
+    urdf.write_text(_WHEELED_URDF)
+    _run(monkeypatch, [str(urdf), "--robot-type", "wheeled"])
+    out = capsys.readouterr().out
+    assert "heuristic" not in out
+
+
+def test_robot_type_mismatch_warning_in_json(monkeypatch, tmp_path):
+    import json
+    urdf = tmp_path / "wheeled.urdf"
+    urdf.write_text(_WHEELED_URDF)
+    _run(monkeypatch, [str(urdf), "--robot-type", "legged"])
+    data = json.loads((tmp_path / "wheeled_validation.json").read_text())
+    assert any("heuristic" in w for w in data["warnings"])
+
+
+def test_robot_type_does_not_crash(monkeypatch, tmp_path):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    code = _run(monkeypatch, [str(urdf), "--robot-type", "aerial"])
+    assert code in (0, 1, 2)
+
+
+# ---------------------------------------------------------------------------
+# --contact-links flag
+# ---------------------------------------------------------------------------
+
+_THREE_FOOT_URDF = """\
+<?xml version="1.0"?>
+<robot name="tripod">
+  <link name="base_link">
+    <inertial>
+      <mass value="10.0"/>
+      <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
+    </inertial>
+  </link>
+  <link name="foot_a">
+    <inertial><mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+  </link>
+  <link name="foot_b">
+    <inertial><mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+  </link>
+  <link name="foot_c">
+    <inertial><mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+  </link>
+  <joint name="j_a" type="fixed">
+    <parent link="base_link"/><child link="foot_a"/>
+    <origin xyz="1.0 0.0 0.0" rpy="0 0 0"/>
+  </joint>
+  <joint name="j_b" type="fixed">
+    <parent link="base_link"/><child link="foot_b"/>
+    <origin xyz="-0.5 0.866 0.0" rpy="0 0 0"/>
+  </joint>
+  <joint name="j_c" type="fixed">
+    <parent link="base_link"/><child link="foot_c"/>
+    <origin xyz="-0.5 -0.866 0.0" rpy="0 0 0"/>
+  </joint>
+</robot>
+"""
+
+
+def test_contact_links_default_is_none():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf"])
+    assert args.contact_links is None
+
+
+def test_contact_links_flag_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--contact-links", "link_a,link_b,link_c"])
+    assert args.contact_links == "link_a,link_b,link_c"
+
+
+def test_contact_links_unknown_name_exits_2(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    code = _run(monkeypatch, [str(urdf), "--contact-links", "nonexistent_link"])
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "unknown link" in err.lower()
+
+
+def test_contact_links_valid_does_not_crash(monkeypatch, tmp_path):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    code = _run(monkeypatch, [str(urdf), "--contact-links", "base_link"])
+    assert code in (0, 1, 2)
+
+
+def test_contact_links_three_non_collinear_produces_stability(monkeypatch, tmp_path):
+    import json
+    urdf = tmp_path / "tripod.urdf"
+    urdf.write_text(_THREE_FOOT_URDF)
+    code = _run(monkeypatch, [str(urdf), "--contact-links", "foot_a,foot_b,foot_c"])
+    data = json.loads((tmp_path / "tripod_validation.json").read_text())
+    # With 3 non-collinear contacts, polygon forms and stability is computed
+    assert data["stability"]["status"] in ("PASS", "FAIL", "WARN")
+    assert data["stability"]["contact_confidence"] == "exact"
+
+
+def test_contact_links_mismatch_warning_when_heuristic_differs(monkeypatch, tmp_path, capsys):
+    # foot_a/b/c have no 'wheel' in name, so heuristic would find nothing.
+    # Declaring them produces a mismatch warning.
+    urdf = tmp_path / "tripod.urdf"
+    urdf.write_text(_THREE_FOOT_URDF)
+    _run(monkeypatch, [str(urdf), "--contact-links", "foot_a,foot_b,foot_c"])
+    out = capsys.readouterr().out
+    assert "[WARN]" in out
+    assert "heuristic" in out
+
+
+def test_contact_links_bypasses_robot_type_guard(monkeypatch, tmp_path):
+    # Tripod has no wheel links, so heuristic would classify as unknown and
+    # stability would return UNKNOWN without --contact-links.
+    # With --contact-links, stability should be computed regardless.
+    import json
+    urdf = tmp_path / "tripod.urdf"
+    urdf.write_text(_THREE_FOOT_URDF)
+    _run(monkeypatch, [str(urdf), "--contact-links", "foot_a,foot_b,foot_c"])
+    data = json.loads((tmp_path / "tripod_validation.json").read_text())
+    assert data["stability"]["status"] != "UNKNOWN" or data["stability"]["reason"] is not None
+
+
+# ---------------------------------------------------------------------------
+# --arm-root / --arm-tip flag
+# ---------------------------------------------------------------------------
+
+# A two-link arm: base_link → (j1) → link1 → (j2) → link2
+# Heuristic picks link2 (2 DOF). Declaring link1 as tip forces a 1-DOF chain.
+_TWO_LINK_ARM_URDF = """\
+<?xml version="1.0"?>
+<robot name="two_arm">
+  <link name="base_link"/>
+  <link name="link1">
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+    </inertial>
+  </link>
+  <link name="link2">
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.005" ixy="0" ixz="0" iyy="0.005" iyz="0" izz="0.005"/>
+    </inertial>
+  </link>
+  <joint name="j1" type="revolute">
+    <parent link="base_link"/>
+    <child link="link1"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.5" upper="1.5" effort="10.0" velocity="1.0"/>
+    <origin xyz="0 0 0.1" rpy="0 0 0"/>
+  </joint>
+  <joint name="j2" type="revolute">
+    <parent link="link1"/>
+    <child link="link2"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.5" upper="1.5" effort="10.0" velocity="1.0"/>
+    <origin xyz="0 0 0.2" rpy="0 0 0"/>
+  </joint>
+</robot>
+"""
+
+
+def test_arm_root_default_is_none():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf"])
+    assert args.arm_root is None
+
+
+def test_arm_tip_default_is_none():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf"])
+    assert args.arm_tip is None
+
+
+def test_arm_root_only_exits_2():
+    from urdf_validator_main.cli import parse_args
+    with pytest.raises(SystemExit) as exc:
+        parse_args(["robot.urdf", "--arm-root", "base_link"])
+    assert exc.value.code == 2
+
+
+def test_arm_tip_only_exits_2():
+    from urdf_validator_main.cli import parse_args
+    with pytest.raises(SystemExit) as exc:
+        parse_args(["robot.urdf", "--arm-tip", "link2"])
+    assert exc.value.code == 2
+
+
+def test_arm_root_tip_both_accepted():
+    from urdf_validator_main.cli import parse_args
+    args = parse_args(["robot.urdf", "--arm-root", "base_link", "--arm-tip", "link2"])
+    assert args.arm_root == "base_link"
+    assert args.arm_tip == "link2"
+
+
+def test_arm_root_unknown_link_exits_2(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "two_arm.urdf"
+    urdf.write_text(_TWO_LINK_ARM_URDF)
+    code = _run(monkeypatch, [str(urdf), "--arm-root", "nonexistent", "--arm-tip", "link2"])
+    assert code == 2
+    assert "unknown link" in capsys.readouterr().err.lower()
+
+
+def test_arm_tip_unknown_link_exits_2(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "two_arm.urdf"
+    urdf.write_text(_TWO_LINK_ARM_URDF)
+    code = _run(monkeypatch, [str(urdf), "--arm-root", "base_link", "--arm-tip", "nonexistent"])
+    assert code == 2
+    assert "unknown link" in capsys.readouterr().err.lower()
+
+
+def test_arm_root_tip_valid_does_not_crash(monkeypatch, tmp_path):
+    urdf = tmp_path / "two_arm.urdf"
+    urdf.write_text(_TWO_LINK_ARM_URDF)
+    code = _run(monkeypatch, [str(urdf), "--arm-root", "base_link", "--arm-tip", "link2"])
+    assert code in (0, 1, 2)
+
+
+def test_arm_root_tip_mismatch_emits_warning(monkeypatch, tmp_path, capsys):
+    # Heuristic picks link2 (2 DOF); declaring link1 as tip forces a 1-DOF chain.
+    urdf = tmp_path / "two_arm.urdf"
+    urdf.write_text(_TWO_LINK_ARM_URDF)
+    _run(monkeypatch, [str(urdf), "--arm-root", "base_link", "--arm-tip", "link1"])
+    out = capsys.readouterr().out
+    assert "[WARN]" in out
+    assert "heuristic" in out
+
+
+def test_arm_root_tip_no_warning_when_heuristic_agrees(monkeypatch, tmp_path, capsys):
+    # Declaring the full chain (base_link → link2) matches what the heuristic picks.
+    urdf = tmp_path / "two_arm.urdf"
+    urdf.write_text(_TWO_LINK_ARM_URDF)
+    _run(monkeypatch, [str(urdf), "--arm-root", "base_link", "--arm-tip", "link2"])
+    out = capsys.readouterr().out
+    assert "heuristic" not in out

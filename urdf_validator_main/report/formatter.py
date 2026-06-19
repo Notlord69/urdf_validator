@@ -19,6 +19,7 @@ def format_report(report: ValidationReport, json_path: str = None) -> str:
     lines.extend(_stability_section(report.stability))
     lines.extend(_workspace_section(report.workspace))
     lines.extend(_task_section(report.workspace))
+    lines.extend(_overrides_section(report))
     lines.extend(_overall_footer(report, json_path=json_path))
     return "\n".join(lines)
 
@@ -193,6 +194,12 @@ def _task_section(workspace) -> list:
         )
 
     return lines
+
+
+def _overrides_section(report: ValidationReport) -> list:
+    if not report.warnings:
+        return []
+    return [f"{_YELLOW}[WARN]{_RESET}  {w}" for w in report.warnings]
 
 
 def _stability_section(stability: StabilityReport) -> list:

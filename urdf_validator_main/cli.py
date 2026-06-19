@@ -19,6 +19,18 @@ _STATUS_RANK = {"FAIL": 4, "WARN": 3, "PASS": 2, "UNKNOWN": 1}
 
 _ACTUATED_JOINT_TYPES = {"revolute", "prismatic"}
 
+# Maps robot_classifier.py output vocab → CLI --robot-type vocab for cross-check comparison.
+_HEURISTIC_TO_CLI_TYPE: Dict[str, str] = {
+    "wheeled": "wheeled",
+    "quadruped": "legged",
+    "humanoid": "humanoid",
+    "unknown": "unknown",
+}
+
+
+def _normalize_robot_type(heuristic: str) -> str:
+    return _HEURISTIC_TO_CLI_TYPE.get(heuristic, "unknown")
+
 
 def _build_limits_angles(parsed) -> Dict[str, float]:
     """Map each bounded revolute/prismatic joint to its upper limit."""
@@ -116,11 +128,44 @@ def parse_args(argv=None):
         default=False,
         help="Run MuJoCo simulation pass to cross-validate gravity torques and COM (requires mujoco)",
     )
+    parser.add_argument(
+        "--robot-type",
+        choices=["wheeled", "legged", "humanoid", "arm_only", "aerial", "unknown"],
+        default=None,
+        metavar="TYPE",
+        dest="robot_type",
+        help="Declare robot category (wheeled|legged|humanoid|arm_only|aerial|unknown); "
+             "heuristic still runs as cross-check",
+    )
+    parser.add_argument(
+        "--contact-links",
+        metavar="LINKS",
+        default=None,
+        dest="contact_links",
+        help="Comma-separated ground-contact link names (bypasses geometry heuristic); "
+             "e.g. 'link_fl,link_fr,link_rl,link_rr'",
+    )
+    parser.add_argument(
+        "--arm-root",
+        metavar="LINK",
+        default=None,
+        dest="arm_root",
+        help="Root link of arm chain (bypasses DOF-heuristic detection; requires --arm-tip)",
+    )
+    parser.add_argument(
+        "--arm-tip",
+        metavar="LINK",
+        default=None,
+        dest="arm_tip",
+        help="End-effector link of arm chain (bypasses DOF-heuristic detection; requires --arm-root)",
+    )
     args = parser.parse_args(argv)
     if args.task == "custom" and args.height is None:
         parser.error("--height is required when --task is 'custom'")
     if args.joint_angles is not None and args.pose != "custom":
         parser.error("--joint-angles requires --pose custom")
+    if bool(args.arm_root) != bool(args.arm_tip):
+        parser.error("--arm-root and --arm-tip must be used together")
     return args
 
 
@@ -218,18 +263,67 @@ def main() -> None:
                 print(f"[ERROR] --joint-angles: {exc}")
                 sys.exit(2)
 
+        # --- Robot type: declared overrides heuristic; heuristic still runs as cross-check ---
+        heuristic_type = detect_robot_type(result)
+        if args.robot_type:
+            effective_type = args.robot_type
+            robot_type_confidence: str = "exact"
+        else:
+            effective_type = heuristic_type
+            robot_type_confidence = "estimated"
+
+        # --- Arm root/tip: validate link names before creating the report ---
+        if args.arm_root:
+            valid_link_names = {lnk.name for lnk in result.links}
+            for link_name, flag in [(args.arm_root, "--arm-root"), (args.arm_tip, "--arm-tip")]:
+                if link_name not in valid_link_names:
+                    print(
+                        f"[ERROR] {flag}: unknown link name '{link_name}'",
+                        file=sys.stderr,
+                    )
+                    sys.exit(2)
+
+        # --- Contact links: parse and validate before creating the report ---
+        contact_links_list = None
+        if args.contact_links:
+            contact_links_list = [n.strip() for n in args.contact_links.split(",") if n.strip()]
+            if not contact_links_list:
+                print("[ERROR] --contact-links: empty link list", file=sys.stderr)
+                sys.exit(2)
+            valid_link_names = {lnk.name for lnk in result.links}
+            invalid_names = [n for n in contact_links_list if n not in valid_link_names]
+            if invalid_names:
+                print(
+                    f"[ERROR] --contact-links: unknown link name(s): {', '.join(invalid_names)}",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+
         report = ValidationReport(
             urdf_path=original_path,
             robot_name=result.name,
-            robot_type=detect_robot_type(result),
+            robot_type=effective_type,
+            robot_type_confidence=robot_type_confidence,
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
+
+        # Add robot-type mismatch warning when declared and heuristic disagree
+        if args.robot_type:
+            normalized_heuristic = _normalize_robot_type(heuristic_type)
+            if normalized_heuristic != args.robot_type:
+                report.warnings.append(
+                    f"User declared --robot-type={args.robot_type}, but link-name heuristic"
+                    f" suggests {normalized_heuristic}"
+                )
+
         run_schema_checks(result, report)
         _populate_link_physics(result, report)
         run_statics(result, report, joint_angles=pose_joint_angles)
-        run_stability(result, report, joint_angles=pose_joint_angles)
+        run_stability(result, report, joint_angles=pose_joint_angles,
+                      robot_type=effective_type, contact_links=contact_links_list)
         run_workspace(result, report, task_name=args.task, task_height_m=task_height_m,
-                      joint_angles=pose_joint_angles)
+                      joint_angles=pose_joint_angles,
+                      arm_root=args.arm_root, arm_tip=args.arm_tip)
         _maybe_run_deep(args, report, path)
 
         report.overall_status = _derive_overall_status(report)

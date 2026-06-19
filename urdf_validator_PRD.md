@@ -2,15 +2,17 @@
 
 **urdf_validator**
 
-_A Physics-Aware URDF Validation Tool for the ROS 2 Community_
+_A Physics-Aware, AI-Callable URDF Validation Tool for the ROS 2 Community_
 
-| **Author**   | Mak                          |
-| ------------ | ---------------------------- |
-| **Version**  | 1.0 - Draft                  |
-| **Date**     | May 2026                     |
-| **Timeline** | 6 Months (Month 1 - Month 6) |
-| **License**  | MIT - Open Source            |
-| **Status**   | Pre-Development              |
+| **Author**   | Mak                                          |
+| ------------ | --------------------------------------------- |
+| **Version**  | 1.1 - Draft (scope revision)                 |
+| **Date**     | May 2026 (original) / June 2026 (revision)   |
+| **Timeline** | Original 6 Months (Month 1-6, COMPLETE through v0.5) + New 6-Month Extension (Month 7-12) |
+| **License**  | MIT - Open Source                            |
+| **Status**   | v0.5 Complete — Extension Phase Planning      |
+
+> **Revision note (June 2026):** Sections 3.2 through 3.6 describe functionality already implemented and shipped through v0.5 (see `PRD_status.md` for line-by-line implementation status). These sections are **not altered** by this revision. This revision adds §1.4 (Expanded Vision), §3.7, and §3.8 as new functional scope, restructures §6 (Release Plan) to push documentation/community-release work back and insert a new Month 7-12 extension plan, and reorganizes §8 (Future Plans) to reflect what is now in-scope for the next six months versus what remains genuinely deferred.
 
 # **1\. Purpose & Problem Statement**
 
@@ -44,7 +46,17 @@ A validated URDF eliminates the most common class of simulation setup failures b
 
 **Conservative estimate:** If urdf_validator saves 2 hours of debugging per URDF-related simulation failure, and an active ROS developer encounters this class of failure even once per month, the tool delivers ~24 developer-hours saved per year per user - entirely through a single pip install.
 
-## **1.4 Reference Documents**
+## **1.4 Expanded Vision: Beyond the Six Reference Robots**
+
+The original scope (§1.1-1.3) was validated against six reference robots and proved the core thesis: physics-aware validation catches a real, common class of bug that schema-only tools cannot. Operating the tool against real-world usage surfaces two limitations in that original scope that this revision addresses directly.
+
+**1.4.1 Generalization beyond the reference set.** Robot classification (wheeled / legged / humanoid / unknown) and contact-point detection were built using name-matching and geometry heuristics tuned against the six reference URDFs. These heuristics do not crash on novel robots (the NFR "never crash" contract holds), but they can silently over-degrade to UNKNOWN on robots that are not actually ambiguous - merely differently named or shaped (e.g. non-English link names, hexapod leg naming conventions, mecanum or tracked wheel geometry, robot categories outside wheeled/legged/humanoid/arm such as aerial or marine platforms). The fix is architectural, not a larger heuristic: let the user declare what the tool cannot reliably infer, and let heuristics remain as a cross-check rather than the sole decision-maker. This also generalizes the project beyond a fixed robot taxonomy via a **capability-profile model** (§3.7.2): a new robot category is supported by composing existing capability checks (locomotion model, manipulator presence, force model) rather than writing a bespoke pipeline branch per category.
+
+**1.4.2 AI/agent callability as a first-class interface.** A large language model reasoning about robot geometry and physics in natural language cannot reliably compute reach, torque margins, or stability - this is a spatial/physical reasoning task, not a language task, and an LLM attempting it will produce confident, unverifiable guesses. The correct division of labor is for urdf_validator to remain the deterministic, auditable ground-truth oracle, and for any calling agent (human or AI) to supply a structured task description and consume a structured, honest result. This revision formalizes that interface (§3.8): a structured task-query schema that any AI agent can call programmatically, with results that explain not just *that* a check failed but *why*, in terms traceable to specific geometry, mass, or kinematic limits - never an LLM-generated physics estimate.
+
+**1.4.3 What stays explicitly out of scope.** This revision does not add any machine-learned or LLM-based component to the physics computation pipeline itself. Every existing and newly-added physics check (gravity torque, payload statics, reachability, stability) remains closed-form and deterministic. The only place a learned component is anticipated at all is the long-term Sim-to-Real Co-Pilot concept (§8, v2.0+), which is explicitly deferred pending real robot telemetry that does not yet exist - and even there, a learned component would calibrate a correction factor applied *after* an exact physics calculation, never replace the calculation itself. See §3.7.4 for the confidence-labeling implications of this principle.
+
+## **1.5 Reference Documents**
 
 - ROBUST: 221 Bugs in the Robot Operating System - Empirical Software Engineering, Springer, March 2024
 - ROS 2 Official Docs: Adding Physical and Collision Properties to a URDF Model (inertia zero warning)
@@ -93,6 +105,13 @@ Top-level module structure (Python package: `urdf_validator_main`):
 - checks/ - schema.py (Phase 1), statics.py (Phase 2), stability.py (Phase 3), workspace.py (Phase 4)
 - report/ - models.py (ValidationReport and all report dataclasses), formatter.py (terminal output), json_export.py (JSON output)
 - integrations/ - mujoco_wrapper.py (optional, lazy import, Phase 5 deep mode)
+
+**New modules added by this revision (§3.7, §3.8) - additive only, no changes to the five modules above:**
+
+- physics/capability_profiles.py - robot-type-to-capability-flag lookup table (§3.7.2)
+- physics/robot_classifier.py - **existing module, unchanged** - continues to run as a cross-check against user-declared `--robot-type`, never as the sole source of truth (§3.7.1)
+- api/task_schema.py - structured task-query request/response schema for programmatic and AI-agent callers (§3.8.1)
+- api/task_runner.py - orchestrates a single task query or a scenario sweep against the existing five-phase pipeline (§3.8.2)
 
 ## **3.2 Phase 1 - URDF Parsing & Schema Validation**
 
@@ -252,6 +271,101 @@ The complete ValidationReport is serialized to JSON and written to &lt;urdf_name
 
 A --deep flag or automatic trigger (when robot_type is unknown, when stability margin is negative, or when mimic joints are detected) fires a MuJoCo simulation pass. This runs: a static pose test to confirm gravity torque estimates, and a 2-second drop test for dynamic stability. Results carry a SIMULATED confidence badge. This module is lazily imported - MuJoCo is not a required dependency.
 
+## **3.7 Phase 6 - User-Declared Robot Info & Capability Profiles (NEW)**
+
+This phase addresses §1.4.1: generalizing beyond the six reference robots without writing a bespoke pipeline branch per new robot category.
+
+**3.7.1 User-Declared Override Flags**
+
+Three new CLI flags let the user supply information the tool previously had to guess via heuristic, with a defined precedence model:
+
+| Flag | Purpose | Bypasses |
+|---|---|---|
+| `--robot-type {wheeled, legged, humanoid, arm_only, aerial, unknown}` | Declares robot category directly | `robot_classifier.py` as decision-maker (heuristic still runs as a cross-check) |
+| `--contact-links "link_a,link_b,link_c"` | Explicit list of ground-contact link names for support polygon extraction | `collect_wheel_contacts()` 3-pass geometry heuristic entirely |
+| `--arm-root <link_name>` / `--arm-tip <link_name>` | Explicit chain boundary for FK/workspace analysis | `detect_arm_chains()` BFS-to-terminal + DOF-filter heuristic |
+
+**Precedence rule:** user-declared values are used directly and labeled confidence `exact`. The corresponding heuristic still runs in the background as a cross-check (cheap - pure string/geometry matching). If the heuristic disagrees with the user's declaration, a WARNING is added to the report naming the disagreement (e.g. "User declared --robot-type=wheeled, but link-name heuristic suggests quadruped") - the user-declared value always wins, the disagreement is surfaced, never silently resolved either way. If no user flag is given, heuristic output is used and labeled confidence `estimated` (not `exact`) to make clear it is an unverified guess, not a verified value - this is a refinement of the existing confidence-honesty NFR (§4), not a new principle.
+
+`--contact-links` accepts link names only (resolved to world-frame position via the existing chain walker, unchanged) - not raw XY coordinates. Coordinate-based input is deferred (§8) as a narrower edge case.
+
+**3.7.2 Capability-Profile Model**
+
+Robot category does not select a monolithic pipeline branch. It resolves to an independent set of applicability flags, each of which determines whether an existing phase runs, is skipped as not-applicable, or (for categories whose required physics module does not yet exist) is reported as not-yet-implemented:
+
+```
+robot_type: "drone"  (user-declared or heuristic-derived)
+        ↓  resolves via physics/capability_profiles.py to:
+{
+  locomotion_model: "aerial",     -> stability check uses thrust/weight model, NOT support polygon
+  has_manipulator: false,         -> workspace/reach checks SKIPPED (reported N/A, not UNKNOWN)
+  force_model: "aerial",          -> statics uses thrust + gravity, not ground reaction force
+  ground_contact: false           -> support polygon extraction SKIPPED entirely
+}
+```
+
+This distinguishes two previously-conflated outcomes in the report: **UNKNOWN** ("the tool could not determine this") versus **N/A** ("this check does not apply to this robot category"). Both are honest; they are not the same claim, and the report schema (§3.6.1, extended) must distinguish them.
+
+Adding support for a new robot category is a three-step, independently-timed lifecycle:
+
+1. **Recognize** - add a row to the capability-profile table (cheap, no physics required). A category can be recognized with correct N/A reporting before its physics module exists.
+2. **Decide** - whether to invest in building the category's physics module, based on observed demand for that category once it is recognized (not speculation).
+3. **Build** - the specific missing physics module only, reusing all existing infrastructure (parsing, chain walker, report dataclasses, JSON export, formatter, CLI orchestration) unchanged.
+
+**3.7.3 Payload-Augmented Statics**
+
+The existing gravity torque computation (§3.3.3) is extended to optionally include an end-effector point mass (the payload), added as one additional force term in the existing moment-arm cross-product calculation - the underlying torque math (§3.3.3) is not altered, only its input.
+
+- New CLI flag: `--payload-mass <kg>` (optionally `--payload-link <link_name>` if the load is not at the terminal link)
+- `required_torque_gravity` is recomputed with the payload term included; `margin` and per-joint PASS/WARN/FAIL status (§3.3.3) apply unchanged to the new value
+- This directly implements the previously-deferred "Payload capacity estimate" item (§3.3.4, listed PENDING in `PRD_status.md`) and answers the most common real-world question identified in the persona research (§2): "is this arm strong enough for the job."
+
+**3.7.4 Confidence Labeling Extensions**
+
+No new states are added to the existing `Confidence` literal's purpose (exact / estimated / guessed / missing / simulated, §4) - only the assignment rule is clarified for the new override mechanism, per the table in §3.7.1. A future `calibrated` tier is anticipated for the Sim-to-Real Co-Pilot concept (§8, v2.0+) but is explicitly out of scope for this revision.
+
+## **3.8 Phase 7 - Structured Task-Query Interface for AI & Programmatic Callers (NEW)**
+
+This phase addresses §1.4.2: making urdf_validator callable by an AI agent (or any external program) as a grounding oracle for geometric/physical reasoning, without ever delegating physics computation to an AI model.
+
+**3.8.1 Design Principle**
+
+The calling agent (human or AI) supplies a structured task description. urdf_validator computes the answer using only the deterministic phases described in §3.2-3.7 - never an LLM-estimated number. The response is structured and includes, for every failed or N/A check, a geometric reason traceable to specific link names, distances, masses, or joint limits. This is the same honest-degradation principle already established for UNKNOWN/N/A reporting (§3.7.2), applied to a richer, task-oriented query rather than only the existing `--task` height check (§3.5.3).
+
+**3.8.2 Task-Query Schema**
+
+Example structured request and response shape (illustrative - full schema to be finalized as an implementation task, see §6):
+
+```
+Input:  URDF + task description, e.g.
+        { "task": "pick", "target_position": [0.6, 0.0, 0.9],
+          "target_orientation": "top_down", "object_mass_kg": 1.0,
+          "terrain_angle_deg": 0 }
+
+Output: Structured PASS / FAIL / N/A / UNKNOWN per sub-check, each with:
+        - the geometric reason (numbers: distances, margins, deficits - never prose-only)
+        - which link/joint is the bottleneck
+        - confidence label (exact / estimated / guessed / missing / simulated)
+```
+
+A "pick up an object" task decomposes into sub-checks, several of which are new functional requirements introduced by this revision:
+
+| Sub-check | Status entering this revision |
+|---|---|
+| Can the end-effector reach the target position? | Exists (§3.5.2) |
+| Can it reach the target **with the required orientation** (e.g. top-down grasp), not just pass through the position? | **New requirement** - existing workspace sampling (§3.5.1) reports reachable positions only, not reachable poses (position + orientation together) |
+| Is the arm strong enough to lift the object's mass at that extension? | Now covered by §3.7.3 (payload-augmented statics) |
+| Does the robot remain stable (COM over support polygon) during the actual extended reach pose, not an approximation? | **Upgrade required** - existing `--task` COM-during-reach check (§3.5.3) uses a midpoint-of-arm approximation per `PRD_status.md`; this revision requires replacing the approximation with the real sampled pose |
+| Does the arm collide with itself, the ground, or the target object while moving there? | **New requirement** - no self-collision or target-clearance geometric check exists in any phase today |
+
+**3.8.3 Scenario Sweeps**
+
+A single task query may be run across a list of parameter variations (terrain angle, payload mass, target height) by repeated invocation of the existing pipeline with different inputs - this is orchestration over the existing deterministic phases, not a new physics capability. Results across the sweep are returned as a list of structured reports; any natural-language synthesis across that list (e.g. "fails above 8 degrees of incline when carrying more than 1.5 kg") is the responsibility of the calling agent, reading the structured output - urdf_validator itself does not generate prose summaries beyond the existing per-check reason strings (§3.6.2, §3.4.2).
+
+**3.8.4 Explicit Non-Goals**
+
+Per §1.4.3: this interface does not run an LLM inside the validation pipeline, does not estimate physics via a trained model, and does not generate narrative reports beyond the structured reason strings the existing report formatter already produces. The "AI understanding geometry instead of guessing numbers" goal is met by the calling agent reading honest structured output - not by urdf_validator producing AI-generated content.
+
 # **4\. Non-Functional Requirements**
 
 | **NFR**                | **Requirement**                                                                                                                                                                                         |
@@ -309,23 +423,44 @@ The acceptance standard for community trust is correct, non-crashing output on s
 
 # **6\. Release Plan**
 
-| **Month**   | **Phase & Focus**                                    | Exit Goal                                                                                                                          |
-| ----------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| **Month 1** | **Parser + Physics + Schema**                        | urdf_validate robot.urdf prints something useful - schema pass/fail, physics confidence levels, non-crash on all 6 reference URDFs |
-| **Month 2** | **Chain Walker + COM + Gravity Torques**             | Correct torque numbers on fetch_robot verified against MuJoCo ground truth (within 10% tolerance)                                  |
-| **Month 3** | **Stability - Support Polygon + COM Projection**     | Correctly identifies stable vs unstable robot configurations on at least 3 reference URDFs                                         |
-| **Month 4** | **Workspace + Task Checks + Full Report Pipeline**   | End-to-end pipeline works on all 6 reference URDFs - no crashes, structured JSON output for each                                   |
-| **Month 5** | **Hardening - Edge Cases, Bad URDFs, Mesh Failures** | Does not crash on any malformed input; gracefully degrades on unknown robot types; mesh failures reported, not thrown; geometry-based wheel contact detection implemented (TurtleBot3 and Fetch produce valid stability polygons) |
-| **Month 6** | **Polish + Docs + Community Release**                | First 50 real users - posted to ROS Discourse, Reddit r/robotics. README includes output examples from all 6 reference robots.     |
+**Months 1-5 are complete and unchanged by this revision** (see `PRD_status.md` for full implementation detail; v0.5 exit criteria MET as of 2026-06-16):
 
-Version milestones:
+| **Month**   | **Phase & Focus**                                    | Exit Goal                                                                                                                          | Status |
+| ----------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| **Month 1** | **Parser + Physics + Schema**                        | urdf_validate robot.urdf prints something useful - schema pass/fail, physics confidence levels, non-crash on all 6 reference URDFs | **COMPLETE** |
+| **Month 2** | **Chain Walker + COM + Gravity Torques**             | Correct torque numbers on fetch_robot verified against MuJoCo ground truth (within 10% tolerance)                                  | **COMPLETE** |
+| **Month 3** | **Stability - Support Polygon + COM Projection**     | Correctly identifies stable vs unstable robot configurations on at least 3 reference URDFs                                         | **COMPLETE** |
+| **Month 4** | **Workspace + Task Checks + Full Report Pipeline**   | End-to-end pipeline works on all 6 reference URDFs - no crashes, structured JSON output for each                                   | **COMPLETE** |
+| **Month 5** | **Hardening - Edge Cases, Bad URDFs, Mesh Failures** | Does not crash on any malformed input; gracefully degrades on unknown robot types; mesh failures reported, not thrown; geometry-based wheel contact detection implemented (TurtleBot3 and Fetch produce valid stability polygons) | **COMPLETE** |
 
-- v0.1 (Month 1): schema + physics confidence - proof of life
-- v0.2 (Month 2): statics pipeline - torque margins
-- v0.3 (Month 3): stability analysis
-- v0.4 (Month 4): full pipeline + JSON export
-- v0.5 (Month 5): hardening - community pre-release
-- v1.0 (Month 6): public release - ROS Discourse announcement
+**Revision: Month 6 is redefined.** The original Month 6 scope ("Polish + Docs + Community Release") is **pushed back to Month 12** to make room for the generalization and AI-callability work (§1.4, §3.7, §3.8) identified as necessary before a public community release accurately represents what the tool can do. Documentation and README should describe a tool that handles more than six hardcoded robots and is usable by AI agents, not just the original six-robot proof of concept.
+
+**New Months 6-12 extension plan:**
+
+| **Month**    | **Phase & Focus**                                                        | Exit Goal                                                                                                                                                          |
+| ------------ | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Month 6**  | **User-Declared Robot Info (§3.7.1)**                                    | `--robot-type`, `--contact-links`, `--arm-root`/`--arm-tip` flags implemented; heuristic-vs-declared mismatch warnings working; existing heuristics unchanged and still run as cross-check |
+| **Month 7**  | **Capability-Profile Architecture (§3.7.2) + Payload-Augmented Statics (§3.7.3)** | Capability-profile table covers arm_only/wheeled/legged/aerial/ground_vehicle categories with correct N/A-vs-UNKNOWN reporting; `--payload-mass` flag implemented and validated against existing gravity torque tests on Fetch, PR2, Franka Panda |
+| **Month 8**  | **Orientation-Aware Reachability**                                       | Workspace sampling (§3.5.1) extended to report reachable poses (position + orientation), not positions alone; validated against at least 2 arm-bearing reference robots |
+| **Month 9**  | **Real-Pose Stability During Reach + Self-Collision/Clearance Checks**   | Midpoint-of-arm approximation (§3.5.3) replaced with real sampled extended pose for COM-during-reach check; basic self-collision/target-clearance geometric check implemented for arm-bearing robots |
+| **Month 10** | **Structured Task-Query Interface (§3.8)**                              | `api/task_schema.py` and `api/task_runner.py` implemented; single task query and scenario sweep both functional; schema documented (mirrors the existing `docs/json_schema.md` pattern) |
+| **Month 11** | **Hardening on Extended Scope**                                          | All Month 6-10 additions validated against all 6 original reference robots plus at least 2 newly-recognized capability-profile categories (e.g. a wheeled-no-arm vehicle, an aerial platform recognized-but-N/A); no crashes; honest N/A reporting confirmed for unimplemented categories |
+| **Month 12** | **Polish + Docs + Community Release** *(original Month 6 scope, relocated)* | First 50 real users - posted to ROS Discourse, Reddit r/robotics. README and docs describe the full extended tool: user-declared robot info, capability-profile generalization, and the AI-callable task-query interface - not just the original six-robot proof of concept. |
+
+Version milestones (revised):
+
+- v0.1 (Month 1): schema + physics confidence - proof of life — **COMPLETE**
+- v0.2 (Month 2): statics pipeline - torque margins — **COMPLETE**
+- v0.3 (Month 3): stability analysis — **COMPLETE**
+- v0.4 (Month 4): full pipeline + JSON export — **COMPLETE**
+- v0.5 (Month 5): hardening - community pre-release — **COMPLETE**
+- v0.6 (Month 6): user-declared robot info overrides
+- v0.7 (Month 7): capability profiles + payload-augmented statics
+- v0.8 (Month 8): orientation-aware reachability
+- v0.9 (Month 9): real-pose stability during reach + self-collision/clearance checks
+- v0.10 (Month 10): structured task-query interface for AI/programmatic callers
+- v0.11 (Month 11): hardening on extended scope
+- v1.0 (Month 12): public release - ROS Discourse announcement *(relocated from original Month 6)*
 
 # **7\. Open Questions**
 
@@ -336,34 +471,55 @@ Version milestones:
 | **3** | Should mesh-based inertia estimation be in v1?                        | Mesh inertia computation (via trimesh) adds a heavy dependency. Current plan: fallback to sphere bounding-box estimate with a 'guessed' confidence label. Full mesh integration deferred to v1.1. |
 | **4** | What is the correct tolerance for torque verification against MuJoCo? | 10% is the current working assumption. Needs empirical validation on fetch_robot in Month 2. May need tightening or loosening based on results.                                                   |
 | **5** | Should the tool support SDF as an input format?                       | Out of scope for v1. SDF is Gazebo-specific. URDF is the universal ROS format. SDF support deferred to Future Plans.                                                                              |
-| **6** | GitHub Actions integration documentation - scope for v1?              | A YAML workflow example for CI integration is desirable for the startup persona. Target: include in docs/ by Month 6, not a blocker for v1.0.                                                     |
+| **6** | GitHub Actions integration documentation - scope for v1?              | A YAML workflow example for CI integration is desirable for the startup persona. Target: include in docs/ by Month 12 (relocated from original Month 6 per §6 revision), not a blocker for v1.0.    |
+| **7** | Should `--contact-links` (§3.7.1) accept raw XY coordinates in addition to link names? | Deferred. Link-name-only covers the realistic case (mecanum/omni/tracked robots all have some link to point at). Coordinate input adds a parallel code path for a narrower edge case (a contact patch not tied to any modeled link). Revisit if real user reports surface the need. |
 
 # **8\. Future Plans**
 
-## **v1.1 - Physics Depth**
+> **Revision note:** The items below were identified during the planning that produced §1.4, §3.7, and §3.8, but are explicitly **not** scheduled into the Month 6-12 extension plan (§6) because they either depend on infrastructure that plan builds first, depend on real-world data that does not yet exist, or are narrower edge cases better revisited after real usage data comes in. The original v1.1-v2.0 future plans (now relabeled v1.2-v2.1 to make room) are preserved unchanged below.
+
+## **v1.1 - Capability-Profile Depth (New Robot Categories Beyond This Revision's Scope)**
+
+- Aerial/drone physics module: thrust-to-weight stability model. The capability-profile architecture (§3.7.2) can *recognize* an `aerial` category and correctly report N/A for ground-contact-based checks as early as Month 7, but the actual thrust-based statics module is new physics work, not a recombination of existing wheeled/legged code, and is not scheduled in the Month 6-12 plan.
+- Marine/submarine physics module (buoyancy, ballast statics, fluid drag) - same recognize-vs-build distinction as above; recognized as a possible future capability-profile row, not scheduled for implementation.
+- Humanoid foot-contact patch extraction (carried over from the original v0.3 scope note in §3.4.1 - "not yet implemented") and unknown-type lowest-link fallback (§3.4.1) remain open from the original PRD and are not addressed by this revision.
+- Mobile-manipulator composite profiles (a robot with both locomotion AND manipulator capability flags active simultaneously) - the capability-profile model (§3.7.2) is designed to compose this way, but has not yet been stress-tested against a real mobile-manipulator URDF; recommended as an early validation case once §3.7.2 ships.
+
+## **v1.2 - Physics Depth** *(originally v1.1, content unchanged)*
 
 - Full mesh-based inertia computation via trimesh - replace sphere fallback for mesh-geometry links
 - SDF input format support for Gazebo-native workflows
 - Inertia comparison between declared value and geometry-derived estimate - flag divergence > 50% as likely hand-authored error
 
-## **v1.2 - Dynamic Analysis**
+## **v1.3 - Dynamic Analysis** *(originally v1.2, content unchanged)*
 
 - Dynamic support polygon: shrinking polygon based on motion direction (requires velocity/gait input)
 - Motion planning compatibility check: verify joint limits and kinematics against MoveIt 2 SRDF conventions
 - Closed-loop joint mechanism detection and reporting (four-bar linkages, cable drives)
 
-## **v1.3 - CI/CD Integration**
+## **v1.4 - CI/CD Integration** *(originally v1.3, content unchanged)*
 
 - urdf_validate --ci flag: exits with non-zero code on any WARNING or higher (strict mode for pipelines)
 - GitHub Actions example workflow in docs/ - drop-in URDF validation step
 - Pre-commit hook template for URDF changes in ROS 2 packages
 - URDF regression diffing: compare two URDF versions and report physics-relevant changes
 
-## **v2.0 - Sim-to-Real Co-Pilot Mode**
+## **v1.5 - Agent Protocol Exposure**
+
+- Expose the structured task-query interface (§3.8) over MCP (Model Context Protocol) so Claude or other AI agents can call urdf_validator directly as a tool, rather than via shell invocation or a custom API wrapper.
+- This is a packaging layer on top of §3.8, not new validation logic - depends on §3.8 (Month 10) shipping first.
+
+## **v2.0 - Sim-to-Real Co-Pilot Mode** *(originally v2.0, content unchanged)*
 
 - Ingest real robot telemetry (joint torques, IMU) and compare against URDF-predicted values
 - Automatic URDF parameter correction suggestions based on telemetry divergence
 - Domain randomization range generation for sim-to-real transfer
 - This is the long-term commercial differentiation path - the Sim-Reality Calibration Co-Pilot concept
+
+## **v2.1 - Telemetry-Calibrated Confidence (New)**
+
+- Builds on v2.0: once real telemetry exists, store (robot, joint, pose, predicted_value, observed_value) records and compute a per-robot-per-joint correction factor (observed/predicted) applied *after* the existing deterministic physics calculation (§3.3.3) - the calculation itself is never altered or replaced.
+- Introduces a new `calibrated` confidence tier (extending §3.7.4), reported alongside the number of real trials the correction is based on, so the report remains honest about how much real data backs any given correction.
+- A learned (non-LLM) regression model predicting the correction factor itself - as a function of pose, load, and joint/actuator type, generalizing across robots sharing hardware - is the only anticipated machine-learning component in this entire roadmap, and is explicitly gated on having accumulated enough cross-robot telemetry for the pattern to be meaningful rather than fitting noise. This cannot start before community adoption (§6, Month 12) produces users willing to submit real telemetry.
 
 _End of Document_

@@ -5,7 +5,13 @@ from typing import List, Optional
 import numpy as np
 
 from urdf_validator_main.parser.urdf_adapter import ParsedRobot
-from urdf_validator_main.physics.arm_chain import _ACTUATED, ArmChain, build_ikpy_chain, detect_arm_chains
+from urdf_validator_main.physics.arm_chain import (
+    _ACTUATED,
+    ArmChain,
+    build_chain_from_bounds,
+    build_ikpy_chain,
+    detect_arm_chains,
+)
 from urdf_validator_main.physics.chain_walker import walk
 from urdf_validator_main.report.models import ValidationReport
 
@@ -61,9 +67,40 @@ def run(parsed: ParsedRobot, report: ValidationReport,
         n_samples: Optional[int] = None,
         task_name: Optional[str] = None,
         task_height_m: Optional[float] = None,
-        joint_angles=None) -> None:
+        joint_angles=None,
+        arm_root: Optional[str] = None,
+        arm_tip: Optional[str] = None) -> None:
     try:
-        arm_chains = detect_arm_chains(parsed)
+        if arm_root is not None and arm_tip is not None:
+            # --- User-declared chain path ---
+            try:
+                explicit_chain = build_chain_from_bounds(parsed, arm_root, arm_tip)
+            except ValueError as exc:
+                report.workspace.status = "UNKNOWN"
+                report.workspace.reason = f"--arm-root/--arm-tip: {exc}"
+                report.unknowns.append(f"Workspace: {exc}")
+                return
+            arm_chains = [explicit_chain]
+
+            # Cross-check: warn when heuristic picks a different tip or DOF count.
+            heuristic_chains = detect_arm_chains(parsed)
+            if heuristic_chains:
+                h = heuristic_chains[0]
+                if h.ee_link_name != explicit_chain.ee_link_name or h.n_dof != explicit_chain.n_dof:
+                    report.warnings.append(
+                        f"User declared --arm-root={arm_root} --arm-tip={arm_tip}"
+                        f" ({explicit_chain.n_dof} DOF) — heuristic would select"
+                        f" tip: {h.ee_link_name} ({h.n_dof} DOF)"
+                    )
+            else:
+                report.warnings.append(
+                    f"User declared --arm-root={arm_root} --arm-tip={arm_tip}"
+                    f" — heuristic detected no arm chain"
+                )
+        else:
+            # --- Heuristic chain path ---
+            arm_chains = detect_arm_chains(parsed)
+
         if not arm_chains:
             report.workspace.status = "UNKNOWN"
             report.workspace.reason = (

@@ -1,8 +1,9 @@
 {
   "urdf_path": "tests/sample_urdf/ANYmal.urdf",
   "robot_name": "anymal",
-  "robot_type": "quadruped",
-  "timestamp": "2026-06-16T07:30:11.950792+00:00",
+  "robot_type": "legged",
+  "robot_type_confidence": "exact",
+  "timestamp": "2026-06-19T06:20:42.684028+00:00",
   "validator_version": "0.1.0",
   "schema": {
     "status": "INFO",
@@ -546,16 +547,17 @@
     "com_height_ratio_class": null,
     "tipping_angle_deg": null,
     "status": "UNKNOWN",
-    "reason": "robot type 'quadruped' \u2014 stability only computed for wheeled robots",
-    "deep_validated": false
+    "reason": "robot type 'legged' \u2014 stability only computed for wheeled robots",
+    "deep_validated": false,
+    "contact_confidence": "missing"
   },
   "workspace": {
-    "max_reach": 0.9601208133047938,
+    "max_reach": 0.9603079353142688,
     "reach_confidence": "estimated",
-    "vertical_reach": 0.5997812510715151,
-    "horizontal_reach": 0.9598055692177119,
+    "vertical_reach": 0.5999608634970519,
+    "horizontal_reach": 0.9603073204246829,
     "status": "PASS",
-    "reach_from_base": 0.9601208133047938,
+    "reach_from_base": 0.9603079353142688,
     "reason": null,
     "task": null,
     "task_target_height_m": null,

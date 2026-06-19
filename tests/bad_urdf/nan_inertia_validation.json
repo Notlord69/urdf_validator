@@ -2,7 +2,8 @@
   "urdf_path": "/home/notlord/ros2_ws/urdf_validator/tests/bad_urdf/nan_inertia.urdf",
   "robot_name": "nan_bot",
   "robot_type": "unknown",
-  "timestamp": "2026-06-16T07:18:48.699965+00:00",
+  "robot_type_confidence": "estimated",
+  "timestamp": "2026-06-19T04:45:23.760249+00:00",
   "validator_version": "0.1.0",
   "schema": {
     "status": "WARN",
@@ -81,7 +82,8 @@
     "tipping_angle_deg": null,
     "status": "UNKNOWN",
     "reason": "robot type 'unknown' \u2014 stability only computed for wheeled robots",
-    "deep_validated": false
+    "deep_validated": false,
+    "contact_confidence": "missing"
   },
   "workspace": {
     "max_reach": 0.0,

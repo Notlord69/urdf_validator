@@ -57,6 +57,7 @@ class StabilityReport:
     status: str = "UNKNOWN"
     reason: Optional[str] = None
     deep_validated: bool = False
+    contact_confidence: Confidence = "missing"
 
 
 @dataclass
@@ -89,6 +90,7 @@ class ValidationReport:
     urdf_path: str = ""
     robot_name: str = ""
     robot_type: str = "unknown"
+    robot_type_confidence: Confidence = "estimated"
     timestamp: str = ""
     validator_version: str = "0.1.0"
     schema: SchemaReport = field(default_factory=SchemaReport)
