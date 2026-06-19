@@ -5,6 +5,7 @@ from typing import List, Optional
 import numpy as np
 
 from urdf_validator_main.parser.urdf_adapter import ParsedRobot
+from urdf_validator_main.physics.capability_profiles import get_profile
 from urdf_validator_main.physics.arm_chain import (
     _ACTUATED,
     ArmChain,
@@ -13,6 +14,7 @@ from urdf_validator_main.physics.arm_chain import (
     detect_arm_chains,
 )
 from urdf_validator_main.physics.chain_walker import walk
+from urdf_validator_main.physics.robot_classifier import detect_robot_type
 from urdf_validator_main.report.models import ValidationReport
 
 # Monte Carlo sample counts for workspace estimation.
@@ -41,7 +43,7 @@ def _shoulder_world(arm: ArmChain, frames) -> np.ndarray:
     return np.zeros(3)
 
 
-def _sample(chain, active_mask: List[bool], n: int) -> np.ndarray:
+def _sample(chain, active_mask: List[bool], n: int) -> tuple:
     rng = np.random.default_rng(_RNG_SEED)
     n_links = len(chain.links)
     active_indices = [i for i, a in enumerate(active_mask) if a]
@@ -55,12 +57,15 @@ def _sample(chain, active_mask: List[bool], n: int) -> np.ndarray:
 
     angles = [0.0] * n_links
     positions = np.empty((n, 3))
+    rotations = np.empty((n, 3, 3))
     for k in range(n):
         row = all_angles[k]
         for col, idx in enumerate(active_indices):
             angles[idx] = row[col]
-        positions[k] = chain.forward_kinematics(angles)[:3, 3]
-    return positions
+        T = chain.forward_kinematics(angles)
+        positions[k] = T[:3, 3]
+        rotations[k] = T[:3, :3]
+    return positions, rotations
 
 
 def run(parsed: ParsedRobot, report: ValidationReport,
@@ -69,7 +74,8 @@ def run(parsed: ParsedRobot, report: ValidationReport,
         task_height_m: Optional[float] = None,
         joint_angles=None,
         arm_root: Optional[str] = None,
-        arm_tip: Optional[str] = None) -> None:
+        arm_tip: Optional[str] = None,
+        robot_type: Optional[str] = None) -> None:
     try:
         if arm_root is not None and arm_tip is not None:
             # --- User-declared chain path ---
@@ -99,6 +105,22 @@ def run(parsed: ParsedRobot, report: ValidationReport,
                 )
         else:
             # --- Heuristic chain path ---
+            effective_type = robot_type if robot_type is not None else detect_robot_type(parsed)
+            profile = get_profile(effective_type)
+
+            if not profile.has_manipulator:
+                report.workspace.status = "N/A"
+                report.workspace.reason = (
+                    f"not applicable — robot type '{effective_type}' has no manipulator"
+                )
+                if task_name is not None:
+                    report.workspace.task = task_name
+                    report.workspace.task_target_height_m = (
+                        float(task_height_m) if task_height_m is not None else None
+                    )
+                    report.workspace.task_reason = "robot type has no manipulator"
+                return
+
             arm_chains = detect_arm_chains(parsed)
 
         if not arm_chains:
@@ -132,7 +154,7 @@ def run(parsed: ParsedRobot, report: ValidationReport,
 
         for arm in arm_chains:
             ikpy_chain, active_mask = build_ikpy_chain(arm)
-            pos_local = _sample(ikpy_chain, active_mask, actual_n)
+            pos_local, rot_local = _sample(ikpy_chain, active_mask, actual_n)
 
             T_root = frames[arm.root_link].T_world
             pos_world = (T_root[:3, :3] @ pos_local.T).T + T_root[:3, 3]

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import math
 import pytest
 import numpy as np
 
 from urdf_validator_main.parser.urdf_adapter import ParsedLink, ParsedJoint, ParsedRobot
-from urdf_validator_main.checks.workspace import run
+from urdf_validator_main.checks.workspace import run, _sample
+from urdf_validator_main.physics.arm_chain import build_chain_from_bounds, build_ikpy_chain
 from urdf_validator_main.report.models import ValidationReport
 
 
@@ -352,3 +354,69 @@ def test_franka_panda_max_reach_is_reasonable():
         f"Franka reach {report.workspace.max_reach:.3f} m exceeds 2.0 m — "
         "base joints may not be stripped correctly"
     )
+
+
+# ---------------------------------------------------------------------------
+# _sample() rotation capture tests
+# ---------------------------------------------------------------------------
+
+def _one_dof_robot() -> ParsedRobot:
+    return ParsedRobot(
+        name="test",
+        links=[
+            ParsedLink(name="base", mass=1.0, inertia_3x3=np.eye(3) * 0.01,
+                       joint_type_incoming=None,
+                       visual_geometry_type=None, collision_geometry_type=None),
+            ParsedLink(name="arm",  mass=0.5, inertia_3x3=np.eye(3) * 0.01,
+                       joint_type_incoming=None,
+                       visual_geometry_type=None, collision_geometry_type=None),
+            ParsedLink(name="ee",   mass=0.1, inertia_3x3=np.eye(3) * 0.01,
+                       joint_type_incoming=None,
+                       visual_geometry_type=None, collision_geometry_type=None),
+        ],
+        joints=[
+            ParsedJoint(
+                name="j1", joint_type="revolute",
+                parent="base", child="arm",
+                limit_lower=-1.57, limit_upper=1.57,
+                limit_effort=10.0, limit_velocity=1.0,
+                origin_xyz=[0.0, 0.0, 0.1], origin_rpy=[0.0, 0.0, 0.0],
+                axis=[0.0, 1.0, 0.0],
+            ),
+            ParsedJoint(
+                name="j_ee", joint_type="fixed",
+                parent="arm", child="ee",
+                limit_lower=None, limit_upper=None,
+                limit_effort=None, limit_velocity=None,
+                origin_xyz=[0.5, 0.0, 0.0], origin_rpy=[0.0, 0.0, 0.0],
+            ),
+        ],
+    )
+
+
+def test_sample_returns_positions_and_rotations():
+    robot = _one_dof_robot()
+    arm = build_chain_from_bounds(robot, "base", "ee")
+    ikpy_chain, active_mask = build_ikpy_chain(arm)
+    result = _sample(ikpy_chain, active_mask, n=20)
+    positions, rotations = result
+    assert positions.shape == (20, 3)
+    assert rotations.shape == (20, 3, 3)
+
+
+def test_sample_rotations_are_valid_rotation_matrices():
+    robot = _one_dof_robot()
+    arm = build_chain_from_bounds(robot, "base", "ee")
+    ikpy_chain, active_mask = build_ikpy_chain(arm)
+    _, rotations = _sample(ikpy_chain, active_mask, n=30)
+    for R in rotations:
+        assert abs(np.linalg.det(R) - 1.0) < 1e-5, f"det(R) = {np.linalg.det(R)}"
+        assert np.allclose(R @ R.T, np.eye(3), atol=1e-5), "R is not orthogonal"
+
+
+def test_sample_positions_unchanged_in_shape():
+    robot = _one_dof_robot()
+    arm = build_chain_from_bounds(robot, "base", "ee")
+    ikpy_chain, active_mask = build_ikpy_chain(arm)
+    positions, _ = _sample(ikpy_chain, active_mask, n=15)
+    assert positions.shape == (15, 3)
