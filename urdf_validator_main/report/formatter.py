@@ -5,6 +5,7 @@ from urdf_validator_main.report.models import LinkPhysicsReport, SchemaReport, S
 _GREEN = "\033[32m"
 _YELLOW = "\033[33m"
 _RED = "\033[31m"
+_CYAN = "\033[36m"
 _RESET = "\033[0m"
 
 _MIN_WIDTH = 52
@@ -65,6 +66,10 @@ def _physics_section(links: list) -> list:
 
 
 def _statics_section(statics: StaticsReport) -> list:
+    if statics.status == "N/A":
+        reason = statics.reason or "not applicable for this robot category"
+        return [f"[STATICS]  {_CYAN}N/A{_RESET} — {reason}"]
+
     if statics.status == "UNKNOWN" and statics.full_body_com is None and not statics.joints:
         return []
 
@@ -81,6 +86,11 @@ def _statics_section(statics: StaticsReport) -> list:
         if statics.heaviest_link_name is not None and statics.heaviest_link_pct is not None:
             lines.append(
                 f"           Heaviest: {statics.heaviest_link_name} ({statics.heaviest_link_pct:.1f}%)"
+            )
+        if statics.payload_mass is not None:
+            link_str = f" @ {statics.payload_link}" if statics.payload_link else ""
+            lines.append(
+                f"           Payload: {statics.payload_mass:.2f} kg{link_str}  (estimated)"
             )
         if statics.mass_split_warning is not None:
             lines.append(f"  {_YELLOW}[WARN]{_RESET}     {statics.mass_split_warning}")
@@ -128,6 +138,7 @@ def _overall_footer(report: ValidationReport, json_path: str = None) -> list:
         "PASS": _GREEN,
         "WARN": _YELLOW,
         "FAIL": _RED,
+        "N/A": _CYAN,
     }.get(status, "")
     confidence = report.confidence_level
     lines = [f"[OVERALL]  {color}{status}{_RESET}  confidence: {confidence}"]
@@ -137,6 +148,10 @@ def _overall_footer(report: ValidationReport, json_path: str = None) -> list:
 
 
 def _workspace_section(workspace) -> list:
+    if workspace.status == "N/A":
+        reason = workspace.reason or "not applicable for this robot category"
+        return [f"[WORKSPACE]  {_CYAN}N/A{_RESET} — {reason}"]
+
     if workspace.status == "UNKNOWN":
         if workspace.reason:
             return [f"[WORKSPACE]  UNKNOWN — {workspace.reason}"]
@@ -203,6 +218,10 @@ def _overrides_section(report: ValidationReport) -> list:
 
 
 def _stability_section(stability: StabilityReport) -> list:
+    if stability.status == "N/A":
+        reason = stability.reason or "not applicable for this robot category"
+        return [f"[STABILITY]  {_CYAN}N/A{_RESET} — {reason}"]
+
     if stability.status == "UNKNOWN":
         if not stability.reason:
             return []

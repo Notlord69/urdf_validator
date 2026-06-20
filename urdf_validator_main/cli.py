@@ -15,7 +15,7 @@ from urdf_validator_main.report.json_export import export
 from urdf_validator_main.report.models import LinkPhysicsReport, ValidationReport
 
 
-_STATUS_RANK = {"FAIL": 4, "WARN": 3, "PASS": 2, "UNKNOWN": 1}
+_STATUS_RANK = {"FAIL": 4, "WARN": 3, "PASS": 2, "UNKNOWN": 1, "N/A": 0}
 
 _ACTUATED_JOINT_TYPES = {"revolute", "prismatic"}
 
@@ -70,7 +70,10 @@ def _derive_overall_status(report: ValidationReport) -> str:
     schema_mapped = _SCHEMA_TO_STATUS.get(report.schema.status, "UNKNOWN")
     statuses = [schema_mapped, report.statics.status, report.stability.status,
                 report.workspace.status]
-    return max(statuses, key=lambda s: _STATUS_RANK.get(s, 0))
+    applicable = [s for s in statuses if s != "N/A"]
+    if not applicable:
+        return "UNKNOWN"
+    return max(applicable, key=lambda s: _STATUS_RANK.get(s, 0))
 
 
 def _derive_confidence_level(report: ValidationReport) -> str:
@@ -146,6 +149,21 @@ def parse_args(argv=None):
              "e.g. 'link_fl,link_fr,link_rl,link_rr'",
     )
     parser.add_argument(
+        "--payload-mass",
+        type=float,
+        metavar="KG",
+        default=None,
+        dest="payload_mass",
+        help="Payload mass in kg attached at the end-effector (or --payload-link)",
+    )
+    parser.add_argument(
+        "--payload-link",
+        metavar="LINK",
+        default=None,
+        dest="payload_link",
+        help="Link name where payload is attached (defaults to detected EE; requires --payload-mass)",
+    )
+    parser.add_argument(
         "--arm-root",
         metavar="LINK",
         default=None,
@@ -166,6 +184,8 @@ def parse_args(argv=None):
         parser.error("--joint-angles requires --pose custom")
     if bool(args.arm_root) != bool(args.arm_tip):
         parser.error("--arm-root and --arm-tip must be used together")
+    if args.payload_mass is not None and args.payload_mass <= 0.0:
+        parser.error("--payload-mass must be a positive value")
     return args
 
 
@@ -272,6 +292,21 @@ def main() -> None:
             effective_type = heuristic_type
             robot_type_confidence = "estimated"
 
+        # --- Payload link: validate before creating the report ---
+        if args.payload_link and not args.payload_mass:
+            print(
+                "[WARN] --payload-link has no effect without --payload-mass",
+                file=sys.stderr,
+            )
+        if args.payload_link:
+            valid_link_names = {lnk.name for lnk in result.links}
+            if args.payload_link not in valid_link_names:
+                print(
+                    f"[ERROR] --payload-link: unknown link name '{args.payload_link}'",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+
         # --- Arm root/tip: validate link names before creating the report ---
         if args.arm_root:
             valid_link_names = {lnk.name for lnk in result.links}
@@ -318,12 +353,16 @@ def main() -> None:
 
         run_schema_checks(result, report)
         _populate_link_physics(result, report)
-        run_statics(result, report, joint_angles=pose_joint_angles)
+        run_statics(result, report, joint_angles=pose_joint_angles,
+                    payload_mass=args.payload_mass,
+                    payload_link=args.payload_link,
+                    arm_tip=args.arm_tip)
         run_stability(result, report, joint_angles=pose_joint_angles,
                       robot_type=effective_type, contact_links=contact_links_list)
         run_workspace(result, report, task_name=args.task, task_height_m=task_height_m,
                       joint_angles=pose_joint_angles,
-                      arm_root=args.arm_root, arm_tip=args.arm_tip)
+                      arm_root=args.arm_root, arm_tip=args.arm_tip,
+                      robot_type=effective_type)
         _maybe_run_deep(args, report, path)
 
         report.overall_status = _derive_overall_status(report)

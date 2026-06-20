@@ -3,7 +3,7 @@
   "robot_name": "mesh_bot",
   "robot_type": "unknown",
   "robot_type_confidence": "estimated",
-  "timestamp": "2026-06-19T04:45:23.757383+00:00",
+  "timestamp": "2026-06-20T08:37:18.469635+00:00",
   "validator_version": "0.1.0",
   "schema": {
     "status": "INFO",
@@ -36,7 +36,10 @@
     "heaviest_link_pct": null,
     "mass_split_warning": null,
     "weakest_joint_name": null,
-    "payload_capacity_kg": null
+    "payload_capacity_kg": null,
+    "payload_mass": null,
+    "payload_link": null,
+    "reason": null
   },
   "stability": {
     "stable": null,
@@ -64,7 +67,10 @@
     "task_height_reachable": null,
     "task_com_stable_during_reach": null,
     "task_com_shift_estimate_m": null,
-    "task_reason": null
+    "task_reason": null,
+    "orientation_reachable": null,
+    "orientation_confidence": "missing",
+    "orientation_tolerance_deg": null
   },
   "overall_status": "PASS",
   "critical_issues": [],

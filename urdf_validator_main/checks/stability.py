@@ -4,6 +4,7 @@ import math
 from typing import List, Optional
 
 from urdf_validator_main.parser.urdf_adapter import ParsedRobot
+from urdf_validator_main.physics.capability_profiles import get_profile
 from urdf_validator_main.physics.chain_walker import walk
 from urdf_validator_main.physics.robot_classifier import detect_robot_type
 from urdf_validator_main.physics.support_polygon import (
@@ -125,8 +126,16 @@ def run(
         else:
             # --- Heuristic contact path ---
             effective_type = robot_type if robot_type is not None else detect_robot_type(parsed)
+            profile = get_profile(effective_type)
 
-            if effective_type != "wheeled":
+            if not profile.ground_contact:
+                report.stability.status = "N/A"
+                report.stability.reason = (
+                    f"not applicable — robot type '{effective_type}' has no ground contact"
+                )
+                return
+
+            if profile.locomotion_model != "wheeled":
                 _unknown(report, f"robot type '{effective_type}' — stability only computed for wheeled robots")
                 return
 

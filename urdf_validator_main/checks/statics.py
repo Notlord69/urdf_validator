@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from urdf_validator_main.parser.urdf_adapter import ParsedJoint, ParsedRobot
+from urdf_validator_main.physics.arm_chain import detect_arm_chains
 from urdf_validator_main.physics.chain_walker import LinkFrame, walk
 from urdf_validator_main.report.models import JointStaticsReport, StaticsReport, ValidationReport
 
@@ -48,40 +49,79 @@ def _compute_com(
     return com, total_mass
 
 
+def _resolve_payload_link(
+    parsed: ParsedRobot,
+    frames: Dict[str, LinkFrame],
+    payload_link: Optional[str],
+    arm_tip: Optional[str],
+) -> tuple:
+    """Return (link_name, pos_world) for the payload attachment point, or (None, None)."""
+    candidate = payload_link or arm_tip
+    if candidate:
+        frame = frames.get(candidate)
+        return (candidate, frame.T_world[:3, 3].copy()) if frame else (None, None)
+    chains = detect_arm_chains(parsed)
+    if chains:
+        ee = chains[0].ee_link_name
+        frame = frames.get(ee)
+        if frame:
+            return ee, frame.T_world[:3, 3].copy()
+    return None, None
+
+
 def _joint_torque(
     joint: ParsedJoint,
     frames: Dict[str, LinkFrame],
     cm: Dict[str, List[ParsedJoint]],
+    payload_mass: float = 0.0,
+    payload_link: Optional[str] = None,
+    payload_pos_world: Optional[Any] = None,
 ) -> Optional[float]:
-    """Gravity torque magnitude on *joint* axis (Nm). Returns None if mass is zero."""
+    """Gravity torque on *joint* axis (Nm), optionally augmented by payload at EE."""
     subtree_names = _subtree_link_names(joint.child, cm)
     subtree_com, subtree_mass = _compute_com(subtree_names, frames)
-    if subtree_com is None or subtree_mass == 0.0:
-        return None
 
     parent_frame = frames.get(joint.parent)
     if parent_frame is None:
         return None
 
-    # Joint origin in world frame
-    joint_origin_world = (parent_frame.T_world @ np.array([*joint.origin_xyz, 1.0]))[:3]
+    payload_in_subtree = (
+        payload_mass > 0.0
+        and payload_link is not None
+        and payload_link in subtree_names
+        and payload_pos_world is not None
+    )
 
-    # Joint axis in world frame
+    # Return None only when there is genuinely nothing to compute
+    if subtree_com is None and not payload_in_subtree:
+        return None
+
+    # Joint kinematics
+    joint_origin_world = (parent_frame.T_world @ np.array([*joint.origin_xyz, 1.0]))[:3]
     axis_world = parent_frame.T_world[:3, :3] @ np.array(joint.axis, dtype=float)
     axis_norm = np.linalg.norm(axis_world)
     if axis_norm < 1e-12:
         return None
     axis_world = axis_world / axis_norm
 
-    gravity_force = subtree_mass * _G
+    tau = 0.0
 
-    if joint.joint_type == "prismatic":
-        # Prismatic effort is a force: component of gravity along the joint axis.
-        return float(abs(np.dot(gravity_force, axis_world)))
+    if subtree_com is not None:
+        gravity_force = subtree_mass * _G
+        if joint.joint_type == "prismatic":
+            tau += float(abs(np.dot(gravity_force, axis_world)))
+        else:
+            moment_arm = subtree_com - joint_origin_world
+            tau += float(abs(np.dot(np.cross(moment_arm, gravity_force), axis_world)))
 
-    moment_arm = subtree_com - joint_origin_world
-    torque_vec = np.cross(moment_arm, gravity_force)
-    return float(abs(np.dot(torque_vec, axis_world)))
+    if payload_in_subtree:
+        if joint.joint_type == "prismatic":
+            tau += float(abs(np.dot(payload_mass * _G, axis_world)))
+        else:
+            arm_p = payload_pos_world - joint_origin_world
+            tau += float(abs(np.dot(np.cross(arm_p, payload_mass * _G), axis_world)))
+
+    return tau
 
 
 def _joint_status(margin: Optional[float]) -> str:
@@ -117,10 +157,30 @@ def run(
     parsed: ParsedRobot,
     report: ValidationReport,
     joint_angles: Optional[Dict[str, float]] = None,
+    payload_mass: Optional[float] = None,
+    payload_link: Optional[str] = None,
+    arm_tip: Optional[str] = None,
 ) -> None:
     try:
         frames = walk(parsed, joint_angles=joint_angles)
         cm = _children_map(parsed)
+
+        _payload_mass = payload_mass if payload_mass and payload_mass > 0.0 else 0.0
+        _payload_link_name: Optional[str] = None
+        _payload_pos_world = None
+        if _payload_mass > 0.0:
+            _payload_link_name, _payload_pos_world = _resolve_payload_link(
+                parsed, frames, payload_link, arm_tip
+            )
+            if _payload_link_name is None:
+                report.unknowns.append(
+                    "Payload: could not resolve attachment link — "
+                    "no arm chain detected and --payload-link not specified"
+                )
+                _payload_mass = 0.0
+            else:
+                report.statics.payload_mass = _payload_mass
+                report.statics.payload_link = _payload_link_name
 
         all_names = list(frames.keys())
         full_com, total_mass = _compute_com(all_names, frames)
@@ -153,7 +213,12 @@ def run(
             if joint.joint_type not in _ACTUATED:
                 continue
             try:
-                req = _joint_torque(joint, frames, cm)
+                req = _joint_torque(
+                    joint, frames, cm,
+                    payload_mass=_payload_mass,
+                    payload_link=_payload_link_name,
+                    payload_pos_world=_payload_pos_world,
+                )
                 declared = joint.limit_effort
 
                 _TORQUE_THRESHOLD = 0.01  # Nm — below this, gravity torque is negligible

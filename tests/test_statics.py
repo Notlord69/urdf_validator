@@ -438,3 +438,247 @@ def test_joint_summary_unknown_when_no_effort():
     j = next(j for j in report.statics.joints if j.name == "j1")
     assert j.summary is not None
     assert "missing" in j.summary.lower() or "unknown" in j.summary.lower()
+
+
+# ---------------------------------------------------------------------------
+# Payload-augmented statics (§3.7.3)
+# ---------------------------------------------------------------------------
+
+def _run_payload(parsed, payload_mass=None, payload_link=None, arm_tip=None):
+    report = ValidationReport()
+    run(parsed, report, payload_mass=payload_mass, payload_link=payload_link, arm_tip=arm_tip)
+    return report
+
+
+def _payload_arm_robot(effort=50.0):
+    """Y-axis joint at origin; 1 kg link cantilevered 1 m along +x; EE at x=1 m.
+
+    Gravity torque on j1 (no payload) = 1 kg * 9.81 m/s² * 1 m = 9.81 Nm.
+    With payload P kg at EE (x=1 m): torque += P * 9.81 * 1 m.
+    """
+    return ParsedRobot(
+        name="r",
+        links=[_link("root", 0.0), _link("link1", 0.0), _link("ee", 1.0)],
+        joints=[
+            _joint("j1", "root", "link1", xyz=[0.0, 0.0, 0.0],
+                   axis=[0.0, 1.0, 0.0], effort=effort),
+            _joint("j_ext", "link1", "ee", xyz=[1.0, 0.0, 0.0], joint_type="fixed"),
+        ],
+    )
+
+
+def test_payload_zero_identical_to_no_payload():
+    robot = _payload_arm_robot()
+    r_base = _run(robot)
+    r_payload = _run_payload(robot, payload_mass=None)
+    j_base = next(j for j in r_base.statics.joints if j.name == "j1")
+    j_pay = next(j for j in r_payload.statics.joints if j.name == "j1")
+    assert j_base.required_torque_gravity == pytest.approx(j_pay.required_torque_gravity, rel=1e-9)
+
+
+def test_payload_increases_torque_on_ancestor_joint():
+    robot = _payload_arm_robot(effort=50.0)
+    r_base = _run(robot)
+    r_pay = _run_payload(robot, payload_mass=5.0, payload_link="ee")
+    j_base = next(j for j in r_base.statics.joints if j.name == "j1")
+    j_pay = next(j for j in r_pay.statics.joints if j.name == "j1")
+    # 5 kg * 9.81 * 1 m = 49.05 Nm extra
+    assert j_pay.required_torque_gravity > j_base.required_torque_gravity
+    assert j_pay.required_torque_gravity == pytest.approx(
+        j_base.required_torque_gravity + 5.0 * 9.81 * 1.0, rel=1e-3
+    )
+
+
+def test_payload_magnitude_exact():
+    """j1 at origin (y-axis), EE at [1,0,0].
+    No link mass (root+link1=0, ee=0 too for purity).
+    Only payload: P kg at EE → torque = P * 9.81 * 1 m.
+    """
+    robot = ParsedRobot(
+        name="r",
+        links=[_link("root", 0.0), _link("link1", 0.0), _link("ee", 0.0)],
+        joints=[
+            _joint("j1", "root", "link1", xyz=[0.0, 0.0, 0.0],
+                   axis=[0.0, 1.0, 0.0], effort=100.0),
+            _joint("j_ext", "link1", "ee", xyz=[1.0, 0.0, 0.0], joint_type="fixed"),
+        ],
+    )
+    r = _run_payload(robot, payload_mass=3.0, payload_link="ee")
+    j = next(j for j in r.statics.joints if j.name == "j1")
+    assert j.required_torque_gravity == pytest.approx(3.0 * 9.81 * 1.0, rel=1e-4)
+
+
+def test_payload_not_counted_for_joints_above_attachment():
+    """Two-joint chain: j1 → j2 → EE.
+    Payload at EE adds torque to BOTH j1 and j2 (both are ancestors).
+    """
+    robot = ParsedRobot(
+        name="r",
+        links=[_link("root", 0.0), _link("l1", 0.0), _link("l2", 0.0), _link("ee", 0.0)],
+        joints=[
+            _joint("j1", "root", "l1", xyz=[0.0, 0.0, 0.0],
+                   axis=[0.0, 1.0, 0.0], effort=100.0),
+            _joint("j2", "l1", "l2", xyz=[1.0, 0.0, 0.0],
+                   axis=[0.0, 1.0, 0.0], effort=100.0),
+            _joint("j_ext", "l2", "ee", xyz=[1.0, 0.0, 0.0], joint_type="fixed"),
+        ],
+    )
+    r = _run_payload(robot, payload_mass=2.0, payload_link="ee")
+    j1 = next(j for j in r.statics.joints if j.name == "j1")
+    j2 = next(j for j in r.statics.joints if j.name == "j2")
+    # EE is in both subtrees → both joints carry payload torque
+    assert j1.required_torque_gravity > 0
+    assert j2.required_torque_gravity > 0
+    # j2 moment arm = 1 m; j1 moment arm = 2 m → j1 > j2
+    assert j1.required_torque_gravity > j2.required_torque_gravity
+
+
+def test_payload_only_on_sibling_branch_does_not_affect_joint():
+    """T-branch robot: root → j_left → left_ee, root → j_right → right_ee.
+    Payload at left_ee must not affect j_right (not in its subtree).
+    """
+    robot = ParsedRobot(
+        name="r",
+        links=[
+            _link("root", 0.0),
+            _link("l_link", 0.0), _link("left_ee", 0.0),
+            _link("r_link", 0.0), _link("right_ee", 0.0),
+        ],
+        joints=[
+            _joint("j_left", "root", "l_link", xyz=[0.0, 0.5, 0.0],
+                   axis=[0.0, 1.0, 0.0], effort=100.0),
+            _joint("j_left_ext", "l_link", "left_ee", xyz=[1.0, 0.0, 0.0],
+                   joint_type="fixed"),
+            _joint("j_right", "root", "r_link", xyz=[0.0, -0.5, 0.0],
+                   axis=[0.0, 1.0, 0.0], effort=100.0),
+            _joint("j_right_ext", "r_link", "right_ee", xyz=[1.0, 0.0, 0.0],
+                   joint_type="fixed"),
+        ],
+    )
+    r_base = _run(robot)
+    r_pay = _run_payload(robot, payload_mass=5.0, payload_link="left_ee")
+    j_left_base = next(j for j in r_base.statics.joints if j.name == "j_left")
+    j_right_base = next(j for j in r_base.statics.joints if j.name == "j_right")
+    j_left_pay = next(j for j in r_pay.statics.joints if j.name == "j_left")
+    j_right_pay = next(j for j in r_pay.statics.joints if j.name == "j_right")
+    # left joint gets payload torque; right joint unchanged
+    # Base torques are None (all structural masses are 0); payload adds non-zero torque only to left
+    assert j_left_pay.required_torque_gravity is not None
+    assert j_left_pay.required_torque_gravity > 0
+    # Right joint should have None (no payload, no structural mass in its subtree)
+    assert j_right_pay.required_torque_gravity is None
+
+
+def test_payload_recorded_in_statics_report():
+    robot = _payload_arm_robot()
+    r = _run_payload(robot, payload_mass=2.5, payload_link="ee")
+    assert r.statics.payload_mass == pytest.approx(2.5)
+    assert r.statics.payload_link == "ee"
+
+
+def test_payload_fields_none_when_no_payload():
+    robot = _payload_arm_robot()
+    r = _run(robot)
+    assert r.statics.payload_mass is None
+    assert r.statics.payload_link is None
+
+
+def test_payload_auto_detects_ee_via_arm_chain():
+    """No --payload-link given; should auto-detect EE from detect_arm_chains()."""
+    robot = _payload_arm_robot(effort=100.0)
+    r_base = _run(robot)
+    r_auto = _run_payload(robot, payload_mass=1.0)
+    j_base = next(j for j in r_base.statics.joints if j.name == "j1")
+    j_auto = next(j for j in r_auto.statics.joints if j.name == "j1")
+    # Payload should have increased the torque
+    assert j_auto.required_torque_gravity > j_base.required_torque_gravity
+
+
+def test_payload_margin_changes_correctly():
+    """j1 with effort=15 Nm. No payload: req≈9.81 Nm, margin≈1.53 → PASS.
+    With 1 kg payload at x=1 m: req≈19.62 Nm, margin≈0.76 → FAIL.
+    """
+    robot = _payload_arm_robot(effort=15.0)
+    r_base = _run(robot)
+    r_pay = _run_payload(robot, payload_mass=1.0, payload_link="ee")
+    j_base = next(j for j in r_base.statics.joints if j.name == "j1")
+    j_pay = next(j for j in r_pay.statics.joints if j.name == "j1")
+    assert j_base.status == "PASS"
+    assert j_pay.status == "FAIL"
+
+
+def test_payload_formatter_shows_payload_line():
+    from urdf_validator_main.report.formatter import format_report
+    robot = _payload_arm_robot()
+    r = _run_payload(robot, payload_mass=2.5, payload_link="ee")
+    output = format_report(r)
+    assert "Payload" in output
+    assert "2.50" in output
+    assert "ee" in output
+
+
+def test_payload_formatter_absent_when_no_payload():
+    from urdf_validator_main.report.formatter import format_report
+    robot = _payload_arm_robot()
+    r = _run(robot)
+    output = format_report(r)
+    assert "Payload" not in output
+
+
+# ---------------------------------------------------------------------------
+# Payload validation pass (Task 5) — Fetch, PR2, Franka Panda
+# ---------------------------------------------------------------------------
+
+import os as _os
+_SAMPLE_DIR = _os.path.join(_os.path.dirname(__file__), "sample_urdf")
+
+
+def _load(name: str):
+    from urdf_validator_main.parser.urdf_adapter import load_urdf, ParsedRobot
+    path = _os.path.join(_SAMPLE_DIR, name)
+    result = load_urdf(path)
+    if not isinstance(result, ParsedRobot):
+        pytest.skip(f"{name} did not parse")
+    return result
+
+
+@pytest.mark.parametrize("urdf_name", ["fetch.urdf", "PR2.urdf", "Franka_Panda.urdf"])
+def test_payload_zero_reproduces_baseline_torques(urdf_name):
+    """payload_mass=None must give exactly the same torques as the unaugmented run."""
+    parsed = _load(urdf_name)
+    r_base = ValidationReport()
+    run(parsed, r_base)
+    r_zero = ValidationReport()
+    run(parsed, r_zero, payload_mass=None)
+    for j_b, j_z in zip(r_base.statics.joints, r_zero.statics.joints):
+        assert j_b.required_torque_gravity == pytest.approx(
+            j_z.required_torque_gravity, rel=1e-9, abs=1e-12
+        ), f"{urdf_name}: {j_b.name} baseline {j_b.required_torque_gravity} vs zero-payload {j_z.required_torque_gravity}"
+
+
+@pytest.mark.parametrize("urdf_name", ["fetch.urdf", "PR2.urdf", "Franka_Panda.urdf"])
+def test_payload_5kg_increases_or_preserves_torques(urdf_name):
+    """5 kg payload must not decrease any joint's required torque."""
+    parsed = _load(urdf_name)
+    r_base = ValidationReport()
+    run(parsed, r_base)
+    r_pay = ValidationReport()
+    run(parsed, r_pay, payload_mass=5.0)
+    for j_b, j_p in zip(r_base.statics.joints, r_pay.statics.joints):
+        if j_b.required_torque_gravity is None:
+            continue
+        assert j_p.required_torque_gravity >= j_b.required_torque_gravity - 1e-9, (
+            f"{urdf_name}: {j_b.name} torque decreased with payload: "
+            f"{j_b.required_torque_gravity} → {j_p.required_torque_gravity}"
+        )
+
+
+@pytest.mark.parametrize("urdf_name", ["fetch.urdf", "PR2.urdf", "Franka_Panda.urdf"])
+def test_payload_does_not_crash(urdf_name):
+    """Full no-crash contract: payload run must complete and populate statics."""
+    parsed = _load(urdf_name)
+    r = ValidationReport()
+    run(parsed, r, payload_mass=5.0)
+    assert r.statics.status in {"PASS", "WARN", "FAIL", "UNKNOWN"}
+    assert r.statics.payload_mass == pytest.approx(5.0)
+    assert r.statics.payload_link is not None

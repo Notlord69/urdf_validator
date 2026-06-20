@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 import numpy as np
 
 from urdf_validator_main.parser.urdf_adapter import ParsedLink, ParsedJoint, ParsedRobot
 from urdf_validator_main.checks.workspace import run, _sample
 from urdf_validator_main.physics.arm_chain import build_chain_from_bounds, build_ikpy_chain
+from urdf_validator_main.physics.chain_walker import walk
 from urdf_validator_main.report.models import ValidationReport
 
 
@@ -355,6 +358,28 @@ def test_franka_panda_max_reach_is_reasonable():
     )
 
 
+def test_fetch_workspace_pass_and_reach_in_range():
+    """Fetch is a mobile manipulator with torso lift + 7-DOF arm.
+    Combined max_reach (shoulder to EE across full torso extension) is
+    measured at ~2.1 m; must be between 0.5 m and 4.0 m.
+    Also verifies the sampling pipeline does not crash on a 9-DOF real URDF.
+    """
+    from urdf_validator_main.parser.urdf_adapter import ParsedRobot, load_urdf
+    path = __import__("os").path.join(SAMPLE_DIR, "fetch.urdf")
+    result = load_urdf(path)
+    if not isinstance(result, ParsedRobot):
+        pytest.skip("fetch.urdf did not parse")
+    report = ValidationReport()
+    run(result, report, n_samples=5000)
+    assert report.workspace.status == "PASS"
+    assert report.workspace.max_reach is not None
+    assert 0.5 < report.workspace.max_reach < 4.0, (
+        f"Fetch reach {report.workspace.max_reach:.3f} m is outside expected range [0.5, 4.0] m"
+    )
+    assert report.workspace.vertical_reach is not None
+    assert report.workspace.vertical_reach > 0.0
+
+
 # ---------------------------------------------------------------------------
 # _sample() rotation capture tests
 # ---------------------------------------------------------------------------
@@ -419,3 +444,125 @@ def test_sample_positions_unchanged_in_shape():
     ikpy_chain, active_mask = build_ikpy_chain(arm)
     positions, _ = _sample(ikpy_chain, active_mask, n=15)
     assert positions.shape == (15, 3)
+
+
+# ---------------------------------------------------------------------------
+# Orientation convention check — ikpy vs chain_walker
+#
+# These tests catch RPY/axis convention mismatches between the two FK
+# pipelines by comparing against hand-computed expected values on a
+# minimal 2-link chain before we run on real reference robots.
+# ---------------------------------------------------------------------------
+
+def _two_link_robot(axis: list[float]) -> ParsedRobot:
+    """2-DOF chain: base → j1 (revolute) → link1 → j2 (revolute, offset +0.5m X) → ee."""
+    return ParsedRobot(
+        name="two_link",
+        links=[
+            ParsedLink(name="base",  mass=0.0, inertia_3x3=None,
+                       joint_type_incoming=None, visual_geometry_type=None,
+                       collision_geometry_type=None),
+            ParsedLink(name="link1", mass=0.0, inertia_3x3=None,
+                       joint_type_incoming=None, visual_geometry_type=None,
+                       collision_geometry_type=None),
+            ParsedLink(name="ee",    mass=1.0, inertia_3x3=None,
+                       joint_type_incoming=None, visual_geometry_type=None,
+                       collision_geometry_type=None),
+        ],
+        joints=[
+            ParsedJoint(
+                name="j1", joint_type="revolute",
+                parent="base", child="link1",
+                limit_lower=-math.pi, limit_upper=math.pi,
+                limit_effort=None, limit_velocity=None,
+                origin_xyz=[0.0, 0.0, 0.0], origin_rpy=[0.0, 0.0, 0.0],
+                axis=axis,
+            ),
+            ParsedJoint(
+                name="j2", joint_type="revolute",
+                parent="link1", child="ee",
+                limit_lower=-math.pi, limit_upper=math.pi,
+                limit_effort=None, limit_velocity=None,
+                origin_xyz=[0.5, 0.0, 0.0], origin_rpy=[0.0, 0.0, 0.0],
+                axis=axis,
+            ),
+        ],
+    )
+
+
+def _ikpy_fk(robot: ParsedRobot, theta1: float, theta2: float) -> np.ndarray:
+    """Call ikpy forward_kinematics with the given per-joint angles."""
+    arm = build_chain_from_bounds(robot, "base", "ee")
+    chain, active_mask = build_ikpy_chain(arm)
+    n_links = len(chain.links)
+    angles = [0.0] * n_links
+    active_indices = [i for i, a in enumerate(active_mask) if a]
+    for k, idx in enumerate(active_indices):
+        angles[idx] = [theta1, theta2][k]
+    return chain.forward_kinematics(angles)
+
+
+def test_two_link_z_axis_ikpy_matches_hand_computed():
+    """θ1=θ2=π/4, both joints Z-axis: EE rotation = Rz(π/2), pos = [√2/4, √2/4, 0].
+
+    Hand derivation: T_ee = Rz(π/4) @ T(0.5,0,0) @ Rz(π/4)
+    → rotation block = Rz(π/4)^2 = Rz(π/2)
+    → translation = Rz(π/4) @ [0.5,0,0] = [0.5*cos π/4, 0.5*sin π/4, 0]
+    """
+    robot = _two_link_robot([0.0, 0.0, 1.0])
+    theta = math.pi / 4
+
+    T = _ikpy_fk(robot, theta, theta)
+    R, p = T[:3, :3], T[:3, 3]
+
+    R_expected = np.array([[0.0, -1.0, 0.0],
+                            [1.0,  0.0, 0.0],
+                            [0.0,  0.0, 1.0]])
+    p_expected = np.array([0.5 * math.cos(theta), 0.5 * math.sin(theta), 0.0])
+
+    np.testing.assert_allclose(R, R_expected, atol=1e-9,
+                               err_msg="ikpy Z-axis rotation mismatch (convention bug)")
+    np.testing.assert_allclose(p, p_expected, atol=1e-9,
+                               err_msg="ikpy Z-axis position mismatch")
+
+
+def test_two_link_y_axis_ikpy_matches_hand_computed():
+    """θ1=+π/4, θ2=-π/4, both joints Y-axis: EE rotation = I (rotations cancel).
+
+    Hand derivation: T_ee = Ry(π/4) @ T(0.5,0,0) @ Ry(-π/4)
+    → rotation block = Ry(π/4) @ Ry(-π/4) = I
+    → translation = Ry(π/4) @ [0.5,0,0] = [0.5*cos π/4, 0, -0.5*sin π/4]
+    """
+    robot = _two_link_robot([0.0, 1.0, 0.0])
+    theta = math.pi / 4
+
+    T = _ikpy_fk(robot, theta, -theta)
+    R, p = T[:3, :3], T[:3, 3]
+
+    np.testing.assert_allclose(R, np.eye(3), atol=1e-9,
+                               err_msg="ikpy Y-axis rotation mismatch — expected identity")
+    p_expected = np.array([0.5 * math.cos(theta), 0.0, -0.5 * math.sin(theta)])
+    np.testing.assert_allclose(p, p_expected, atol=1e-9,
+                               err_msg="ikpy Y-axis position mismatch")
+
+
+def test_ikpy_and_chain_walker_agree_on_orientation():
+    """ikpy FK and chain_walker must produce the same EE rotation for identical angles.
+
+    Uses Y-axis joints at θ1=π/6, θ2=π/3 — a non-degenerate configuration.
+    """
+    robot = _two_link_robot([0.0, 1.0, 0.0])
+    theta1, theta2 = math.pi / 6, math.pi / 3
+
+    T_ikpy = _ikpy_fk(robot, theta1, theta2)
+    R_ikpy = T_ikpy[:3, :3]
+    p_ikpy = T_ikpy[:3, 3]
+
+    frames = walk(robot, joint_angles={"j1": theta1, "j2": theta2})
+    R_walker = frames["ee"].T_world[:3, :3]
+    p_walker = frames["ee"].T_world[:3, 3]
+
+    np.testing.assert_allclose(R_ikpy, R_walker, atol=1e-9,
+                               err_msg="ikpy and chain_walker EE rotation disagree")
+    np.testing.assert_allclose(p_ikpy, p_walker, atol=1e-9,
+                               err_msg="ikpy and chain_walker EE position disagree")

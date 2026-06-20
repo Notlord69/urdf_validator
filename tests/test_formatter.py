@@ -216,3 +216,82 @@ def test_task_section_shows_com_unstable():
     combined = " ".join(lines)
     assert "WARN" in combined
     assert "0.450" in combined
+
+
+# ---------------------------------------------------------------------------
+# N/A visual treatment
+# ---------------------------------------------------------------------------
+
+def test_stability_na_with_reason_shows_na_and_reason():
+    from urdf_validator_main.report.formatter import _stability_section
+    from urdf_validator_main.report.models import StabilityReport
+    s = StabilityReport(status="N/A", reason="aerial robot: no ground contact")
+    out = " ".join(_stability_section(s))
+    assert "N/A" in out
+    assert "aerial robot: no ground contact" in out
+    assert "UNKNOWN" not in out
+
+
+def test_stability_na_without_reason_shows_default():
+    from urdf_validator_main.report.formatter import _stability_section
+    from urdf_validator_main.report.models import StabilityReport
+    s = StabilityReport(status="N/A")
+    out = " ".join(_stability_section(s))
+    assert "N/A" in out
+    assert "not applicable" in out
+
+
+def test_workspace_na_with_reason_shows_na_and_reason():
+    from urdf_validator_main.report.formatter import _workspace_section
+    from urdf_validator_main.report.models import WorkspaceReport
+    ws = WorkspaceReport(status="N/A", reason="no manipulator declared")
+    out = " ".join(_workspace_section(ws))
+    assert "[WORKSPACE]" in out
+    assert "N/A" in out
+    assert "no manipulator declared" in out
+
+
+def test_workspace_na_without_reason_shows_default():
+    from urdf_validator_main.report.formatter import _workspace_section
+    from urdf_validator_main.report.models import WorkspaceReport
+    ws = WorkspaceReport(status="N/A")
+    out = " ".join(_workspace_section(ws))
+    assert "N/A" in out
+    assert "not applicable" in out
+
+
+def test_statics_na_with_reason():
+    from urdf_validator_main.report.formatter import _statics_section
+    from urdf_validator_main.report.models import StaticsReport
+    s = StaticsReport(status="N/A", reason="aerial: thrust model, not ground reaction")
+    out = " ".join(_statics_section(s))
+    assert "[STATICS]" in out
+    assert "N/A" in out
+    assert "thrust model" in out
+
+
+def test_statics_na_without_reason_shows_default():
+    from urdf_validator_main.report.formatter import _statics_section
+    from urdf_validator_main.report.models import StaticsReport
+    s = StaticsReport(status="N/A")
+    out = " ".join(_statics_section(s))
+    assert "N/A" in out
+    assert "not applicable" in out
+
+
+def test_na_sections_are_excluded_from_overall_pass():
+    """A report where stability and workspace are N/A and statics is PASS should show PASS overall."""
+    from urdf_validator_main.report.models import ValidationReport
+    r = ValidationReport()
+    r.schema.status = "PASS"
+    r.statics.status = "PASS"
+    r.stability.status = "N/A"
+    r.stability.reason = "aerial robot"
+    r.workspace.status = "N/A"
+    r.workspace.reason = "no manipulator"
+    r.overall_status = "PASS"
+    out = format_report(r)
+    assert "N/A" in out
+    assert "[STABILITY]" in out
+    assert "[WORKSPACE]" in out
+    assert "PASS" in out

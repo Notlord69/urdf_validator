@@ -4,17 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "urdf-validator"
-version = "0.1.0"
+version = "0.7.0"
 requires-python = ">=3.8"
 dependencies = [
     "urdf_parser_py",
     "numpy",
     "shapely",
+    "ikpy",
 ]
 
 [project.optional-dependencies]
 xacro = ["xacro"]
-full = ["ikpy", "xacro"]
 mujoco = ["mujoco"]
 dev = ["pytest"]
 

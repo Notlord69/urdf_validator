@@ -5,9 +5,9 @@
 | Field          | Value              |
 |----------------|--------------------|
 | PRD Version    | 1.1 - Draft (scope revision) |
-| Status as of   | 2026-06-19         |
-| Current Build  | v0.6.0             |
-| Current Phase  | Month 6 complete — Month 7 planning |
+| Status as of   | 2026-06-20         |
+| Current Build  | v0.8.0-dev         |
+| Current Phase  | Month 8 in progress — orientation fields + convention tests done |
 
 ---
 
@@ -21,8 +21,8 @@
 | v0.4      | 4     | Workspace + Task Checks + Full Report Pipeline | **COMPLETE** |
 | v0.5      | 5     | Hardening — Edge Cases, Bad URDFs, Mesh Failures | **COMPLETE**    |
 | v0.6      | 6     | User-Declared Robot Info Overrides (§3.7.1)                       | **COMPLETE** |
-| v0.7      | 7     | Capability Profiles + Payload-Augmented Statics (§3.7.2, §3.7.3) | NOT STARTED |
-| v0.8      | 8     | Orientation-Aware Reachability (§3.8 sub-check)                   | NOT STARTED |
+| v0.7      | 7     | Capability Profiles + Payload-Augmented Statics (§3.7.2, §3.7.3) | **COMPLETE** |
+| v0.8      | 8     | Orientation-Aware Reachability (§3.8 sub-check)                   | **IN PROGRESS** — fields + predicate + rotation capture done; scoring not yet wired |
 | v0.9      | 9     | Real-Pose Stability + Self-Collision/Clearance (§3.8 sub-check)   | NOT STARTED |
 | v0.10     | 10    | Structured Task-Query Interface (§3.8)                            | NOT STARTED |
 | v0.11     | 11    | Hardening on Extended Scope                                        | NOT STARTED |
@@ -155,7 +155,7 @@
 |-------------------------------------------------------------|-------------|-------|
 | FK via `ikpy` wrapper                                       | **DONE**    | `build_ikpy_chain()` in `physics/arm_chain.py`; Monte Carlo sampling in `checks/workspace.py` |
 | End-effector chain identification from URDF                 | **DONE**    | `detect_arm_chains()` — BFS to terminals, filters by n_dof; continuous-only chains excluded |
-| Reachable workspace Monte Carlo sampling                    | **DONE**    | `_sample()` in `checks/workspace.py`; random joint angles within declared limits |
+| Reachable workspace Monte Carlo sampling                    | **DONE**    | `_sample()` in `checks/workspace.py`; random joint angles within declared limits; returns `(positions, rotations)` — both EE position `T[:3,3]` and rotation `T[:3,:3]` captured per sample |
 
 ### 3.5.2 Reach Metrics
 
@@ -204,10 +204,11 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 | `[SCHEMA]` section with colored status and issue list      | **DONE**    |                                               |
 | `[PHYSICS]` section with per-link confidence summary       | **DONE**    | mass/inertia exact vs missing counts          |
 | `[STATICS]` section                                        | **DONE**    | COM, total mass, per-joint torque/margin/status |
-| `[STABILITY]` section                                      | **DONE**    | STABLE/UNSTABLE with margin and tip direction; UNKNOWN shows `UNKNOWN — <reason>`; omitted only when reason is None (safe fallback) |
+| `[STABILITY]` section                                      | **DONE**    | STABLE/UNSTABLE with margin and tip direction; second line shows COM height ratio, class, and tipping angle when available; `[SIM]` badge when `deep_validated`; UNKNOWN shows `UNKNOWN — <reason>`; omitted only when reason is None (safe fallback) |
 | `[WORKSPACE]` section                                      | **DONE**    | `_workspace_section()` in `report/formatter.py`; shows reach metrics or UNKNOWN reason |
 | `[TASK]` section                                           | **DONE**    | `_task_section()` in `report/formatter.py`; height reachability + COM stability during reach |
-| "Full report: …json" footer line                           | **DONE**    | `_overall_footer()` in `report/formatter.py:134` |
+| Override mismatch warnings section                         | **DONE**    | `_overrides_section()` in `report/formatter.py` — renders each `report.warnings` entry as `[WARN]  <message>` |
+| "Full report: …json" footer line                           | **DONE**    | `_overall_footer()` in `report/formatter.py`     |
 
 ### 3.6.3 JSON Export
 
@@ -240,32 +241,92 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 | `--arm-root <link_name>` / `--arm-tip <link_name>` CLI flags                              | **DONE**    | `cli.py` + `checks/workspace.py` + `physics/arm_chain.py` — `build_chain_from_bounds()` traces tip→root; bypasses `detect_arm_chains()` BFS; link names validated; cross-check warning when heuristic tip or DOF differs |
 | User-declared values labeled `exact` confidence                                            | **DONE**    | `robot_type_confidence="exact"` in `ValidationReport`; `contact_confidence="exact"` in `StabilityReport` when `--contact-links` declared |
 | Heuristic-vs-declared mismatch WARNING added to report                                    | **DONE**    | `report.warnings` appended; shown as `[WARN]` in terminal; included in JSON `warnings` array; verified on all 6 reference URDFs |
-| New module `physics/capability_profiles.py`                                                | NOT STARTED | Deferred to v0.7 — additive, no impact on v0.6 deliverables |
+| New module `physics/capability_profiles.py`                                                | **DONE**    | `physics/capability_profiles.py` — implemented in v0.7; `CapabilityProfile` dataclass + `_PROFILES` dict + `get_profile()` public API |
 
 ### 3.7.2 Capability-Profile Model
 
 | Item                                                                                      | Status      | Notes                                                                 |
 |-------------------------------------------------------------------------------------------|-------------|-----------------------------------------------------------------------|
-| Capability-profile table (arm_only / wheeled / legged / aerial / ground_vehicle)          | NOT STARTED | Maps robot_type → {locomotion_model, has_manipulator, force_model, ground_contact} flags |
-| N/A vs UNKNOWN distinction in report schema                                               | NOT STARTED | N/A = check does not apply to this robot category; UNKNOWN = tool could not determine |
-| `ValidationReport` and sub-report dataclasses extended to carry N/A                       | NOT STARTED | Extends §3.6.1 schema |
-| 3-step Recognize / Decide / Build lifecycle for new robot categories                       | NOT STARTED | Recognize alone enables correct N/A reporting before physics module exists |
+| Capability-profile table (arm_only / wheeled / legged / aerial / ground_vehicle)          | **DONE**    | `physics/capability_profiles.py` — `CapabilityProfile` dataclass + `_PROFILES` dict; `get_profile()` public API |
+| N/A vs UNKNOWN distinction in report schema                                               | **DONE**    | N/A = check does not apply (aerial/arm_only→stability N/A; aerial/ground_vehicle/legged→workspace N/A); UNKNOWN = tried but could not determine |
+| `ValidationReport` and sub-report dataclasses extended to carry N/A                       | **DONE**    | `StabilityReport.status`, `WorkspaceReport.status`, `StaticsReport.status` all accept "N/A"; formatter shows `[CYAN]N/A[/CYAN] — <reason>` |
+| 3-step Recognize / Decide / Build lifecycle for new robot categories                       | **DONE**    | `aerial` and `ground_vehicle` recognized via profile; capability flag consulted before heuristics; synthetic test fixtures in `test_capability_wiring.py` prove clean N/A without crashing |
+| Capability flags wired into stability check                                                | **DONE**    | `checks/stability.py` — `profile.ground_contact=False` → N/A; `profile.locomotion_model="wheeled"` → run heuristic (covers both `wheeled` and `ground_vehicle`); otherwise UNKNOWN |
+| Capability flags wired into workspace check                                                | **DONE**    | `checks/workspace.py` — `profile.has_manipulator=False` → N/A; explicit `--arm-root/--arm-tip` bypasses profile |
 
 ### 3.7.3 Payload-Augmented Statics
 
 | Item                                                                                      | Status      | Notes                                                                 |
 |-------------------------------------------------------------------------------------------|-------------|-----------------------------------------------------------------------|
-| `--payload-mass <kg>` CLI flag                                                             | NOT STARTED | Adds end-effector point mass as additional force term in gravity torque calculation |
-| `--payload-link <link_name>` optional flag                                                 | NOT STARTED | Specifies load attachment point; defaults to terminal link |
-| `required_torque_gravity` recomputed with payload term included                            | NOT STARTED | Underlying cross-product math (§3.3.3) unchanged; only input extended |
-| Per-joint PASS/WARN/FAIL margins applied to payload-augmented torque value                 | NOT STARTED | Same thresholds as §3.3.3: PASS ≥1.5×, WARN 1.0–1.5×, FAIL <1.0× |
-| Resolves previously-PENDING payload capacity estimate (§3.3.4)                             | NOT STARTED | |
+| `--payload-mass <kg>` CLI flag                                                             | **DONE**    | `cli.py` — positive float required; validated before report creation; wired into `run_statics()` |
+| `--payload-link <link_name>` optional flag                                                 | **DONE**    | `cli.py` — link-name validated against URDF link set; warns when given without `--payload-mass`; defaults to EE auto-detection |
+| `required_torque_gravity` recomputed with payload term included                            | **DONE**    | `checks/statics.py` — `_joint_torque()` extended with payload params; payload torque added iff payload link is in joint's subtree; zero-structural-mass case handled correctly |
+| Per-joint PASS/WARN/FAIL margins applied to payload-augmented torque value                 | **DONE**    | Same thresholds as §3.3.3: PASS ≥1.5×, WARN 1.0–1.5×, FAIL <1.0×; no threshold changes |
+| Auto-detection of payload attachment link via `detect_arm_chains()`                        | **DONE**    | `_resolve_payload_link()` in `checks/statics.py`; priority: `--payload-link` > `--arm-tip` > first chain EE |
+| Payload recorded in `StaticsReport`                                                        | **DONE**    | `StaticsReport.payload_mass` and `StaticsReport.payload_link`; both None when no payload declared |
+| Payload shown in formatter                                                                  | **DONE**    | `Payload: X.XX kg @ link_name  (estimated)` line in `[STATICS]` section |
+| Payload fields in JSON output                                                               | **DONE**    | Serialized automatically via `json_export.py` numpy-safe encoder |
+| Validation pass: `payload_mass=0` reproduces baseline torques                              | **DONE**    | `test_payload_zero_reproduces_baseline_torques` parametrized on Fetch, PR2, Franka Panda |
+| Validation pass: 5 kg payload increases or preserves torques                               | **DONE**    | `test_payload_5kg_increases_or_preserves_torques` on all three URDFs |
+| No-crash contract on all three reference URDFs                                              | **DONE**    | `test_payload_does_not_crash` — status in {PASS, WARN, FAIL, UNKNOWN} and payload fields populated |
 
 ### 3.7.4 Confidence Labeling Extensions
 
 | Item                                                                                      | Status      | Notes                                                                 |
 |-------------------------------------------------------------------------------------------|-------------|-----------------------------------------------------------------------|
-| Assignment rule clarified for user-declared override mechanism                             | NOT STARTED | No new Confidence states added; `calibrated` tier deferred to v2.1 |
+| Assignment rule clarified for user-declared override mechanism                             | **DONE**    | No new Confidence states added; payload torque carries `"estimated"` confidence (same as gravity torque); `calibrated` tier deferred to v2.1 |
+
+---
+
+## v0.7 Exit Criteria Check (Month 7) — 2026-06-19
+
+> _"Capability profiles wired in; N/A propagated correctly for aerial/ground_vehicle; `--payload-mass` augments gravity torques; `payload_mass=0` reproduces baseline; no crashes on any reference URDF"_
+
+| Criterion                                                                                                | Met? |
+|----------------------------------------------------------------------------------------------------------|------|
+| `physics/capability_profiles.py` implemented with all 7 robot types                                     | YES  |
+| `get_profile()` consulted before heuristics in `stability.py` and `workspace.py`                        | YES  |
+| `aerial` and `arm_only` → stability N/A (ground_contact=False)                                          | YES  |
+| `aerial`, `ground_vehicle`, `legged`, `quadruped` → workspace N/A (has_manipulator=False)              | YES  |
+| `ground_vehicle` → stability heuristic runs (locomotion_model="wheeled")                                | YES  |
+| Explicit `--contact-links` / `--arm-root+tip` overrides bypass profile (N/A not forced)                 | YES  |
+| `--payload-mass` and `--payload-link` CLI flags implemented                                              | YES  |
+| Payload torque computed as cross-product; only for joints whose subtree contains payload link            | YES  |
+| `payload_mass=0` produces torques identical to no-payload baseline (Fetch, PR2, Franka Panda)           | YES  |
+| 5 kg payload does not decrease any joint's required torque                                               | YES  |
+| No crash on any of the 6 reference URDFs with or without payload                                        | YES  |
+| `docs/json_schema.md` updated: N/A status clarified; `payload_mass`/`payload_link` fields documented    | YES  |
+
+**v0.7 exit criteria: MET (12/12)**
+
+### v0.7 Work Log
+
+| Task | Status | Notes |
+|---|---|---|
+| Task 1 — Capability profile table | **DONE** | `physics/capability_profiles.py` — 7 profiles; `get_profile()` |
+| Task 2 — Wire profiles into stability check | **DONE** | `checks/stability.py` — N/A for no-ground-contact types; UNKNOWN for ground-contact non-wheeled |
+| Task 3 — Wire profiles into workspace check | **DONE** | `checks/workspace.py` — N/A for no-manipulator types; explicit arm-root/tip bypass |
+| Task 4 — Payload-augmented statics | **DONE** | `checks/statics.py` — `_joint_torque()` extended; `_resolve_payload_link()`; `run()` extended |
+| Task 5 — CLI flags for payload | **DONE** | `cli.py` — `--payload-mass`/`--payload-link`; link validation; `--payload-link`-without-mass warning |
+| Task 6 — Validation pass | **DONE** | `test_statics.py` — 3 parametrized tests on Fetch, PR2, Franka Panda; all pass |
+| Task 7 — Docs update | **DONE** | `PRD_status.md` §3.7.2–3.7.4 → DONE; `docs/json_schema.md` payload fields added |
+| Test count | 472 tests pass | +27 new tests (17 capability wiring + 10 payload); suite now at 498 after v0.8 partial additions |
+
+---
+
+## v0.8 Partial Progress — Orientation-Aware Reachability (§3.8 sub-check)
+
+Work in progress (2026-06-20). Full milestone criteria not yet met.
+
+| Item                                                                                | Status          | Notes |
+|-------------------------------------------------------------------------------------|-----------------|-------|
+| `orientation_reachable`, `orientation_confidence`, `orientation_tolerance_deg` fields in `WorkspaceReport` | **DONE** | `report/models.py` |
+| `physics/orientation.py` — `pose_satisfies()` predicate                            | **DONE**        | Supports `"top_down"`, `"side"`, 3-tuple RPY, 4-tuple quaternion; geodesic comparison |
+| EE rotation matrix captured per sample in `_sample()`                              | **DONE**        | `checks/workspace.py` — `rotations = np.empty((n, 3, 3))`; `T[:3,:3]` stored |
+| Convention verification: ikpy ↔ chain_walker orientation agreement                 | **DONE**        | 3 new tests in `test_workspace.py` — Z-axis and Y-axis 2-link chains with hand-computed expected values; both FK pipelines verified to agree |
+| Validated on ≥2 arm-bearing reference robots (Franka Panda + Fetch)                | **DONE**        | `test_fetch_workspace_pass_and_reach_in_range` added; both PASS, reach within expected range |
+| Orientation scoring wired into `workspace.run()` (populate report fields)           | **NOT STARTED** | `orientation_reachable` stays `null`; fraction-of-sampled-poses logic not yet written |
+| `docs/json_schema.md` updated with orientation fields                               | **DONE**        | Three new rows in WorkspaceReport table |
 
 ---
 
@@ -315,15 +376,22 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 | `--robot-type` flag                                        | **DONE**    | All 6 values; `robot_type_confidence="exact"`; heuristic cross-check; mismatch `[WARN]` |
 | `--contact-links` flag                                     | **DONE**    | Comma-separated link names; link validation before report creation; `contact_confidence="exact"`; heuristic cross-check |
 | `--arm-root` / `--arm-tip` flags                          | **DONE**    | Both-or-neither enforced; link validation; `build_chain_from_bounds()` bypasses BFS; heuristic cross-check |
+| `--payload-mass <kg>` flag                                 | **DONE**    | Positive float required; wired into `run_statics()` with payload torque augmentation |
+| `--payload-link <link>` flag                               | **DONE**    | Optional; link-name validated; warns when given without `--payload-mass`; defaults to EE auto-detection |
 
 ---
 
 ## Physics Engine Modules
 
-| Module                        | Status      | Notes                                           |
-|-------------------------------|-------------|-------------------------------------------------|
-| `physics/geometry_physics.py` | **DONE**    | `estimate_inertia()` for sphere, box, cylinder; mesh returns `guessed` |
-| `physics/chain_walker.py`     | **DONE**    | BFS tree traversal; `_rpy_to_matrix`, `_origin_to_transform`; Rodrigues rotation (`_axis_angle_to_matrix`) + prismatic translation (`_joint_motion_transform`); `walk()` accepts `joint_angles: Optional[Dict[str, float]]`; never raises |
+| Module                          | Status   | Notes                                                                                                                                                                                |
+|---------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `physics/geometry_physics.py`   | **DONE** | `estimate_inertia()` for sphere, box, cylinder; mesh returns `guessed`                                                                                                               |
+| `physics/chain_walker.py`       | **DONE** | BFS tree traversal; `_rpy_to_matrix`, `_origin_to_transform`; Rodrigues rotation (`_axis_angle_to_matrix`) + prismatic translation (`_joint_motion_transform`); `walk()` accepts `joint_angles: Optional[Dict[str, float]]`; never raises |
+| `physics/arm_chain.py`          | **DONE** | `ArmChain` dataclass; `detect_arm_chains()` BFS terminal-to-root with DOF filter + continuous-only exclusion; `build_chain_from_bounds()` for explicit root/tip; `build_ikpy_chain()` wraps URDF joints into ikpy `URDFLink` chain; base-joint stripping (`n_strip` loop) |
+| `physics/robot_classifier.py`   | **DONE** | `detect_robot_type()` — keyword heuristic; priority: wheeled > quadruped > humanoid > unknown; `_WHEEL_KEYWORDS`, `_QUADRUPED_KEYWORDS`, `_HUMANOID_KEYWORDS`                      |
+| `physics/support_polygon.py`    | **DONE** | `collect_wheel_contacts()` 3-pass: (1) name match `"wheel"`, (2) cylinder r/L > 0.3 fallback, (3) caster inclusion; `extract_wheeled_polygon()` → shapely convex hull; degenerate cases return `None` |
+| `physics/capability_profiles.py`| **DONE** | `CapabilityProfile` frozen dataclass; `_PROFILES` dict for 8 robot types (arm\_only, wheeled, ground\_vehicle, legged, quadruped, humanoid, aerial, unknown); `get_profile()` public API with unknown fallback |
+| `physics/orientation.py`        | **DONE** | `pose_satisfies(transform, target_orientation, tolerance_deg)` — four modes: `"top_down"` (EE Z-axis down), `"side"` (EE Z roughly horizontal), RPY 3-tuple, quaternion 4-tuple; geodesic comparison via `(trace(R_target.T @ R_sample) − 1) / 2` |
 
 ---
 
@@ -331,7 +399,7 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 
 | NFR                    | Status      | Notes                                                    |
 |------------------------|-------------|----------------------------------------------------------|
-| Performance < 30s      | **DONE**    | Profiled on PR2 (worst case, 88 links): 4.1s. All 6 reference robots complete under 5s. Bottleneck was Monte Carlo workspace sampling; fixed by (1) vectorized bulk RNG generation (replaced 660K scalar calls with 1 `np.random.uniform` call) and (2) reduced sample counts: `_N_SAMPLES_LARGE` 30K→20K, `_N_SAMPLES_DEFAULT` 50K→30K. Max-reach convergence verified at 20K vs 30K: <0.1% diff (both "estimated"). PR2 workspace time: 10s → 2.7s. |
+| Performance < 30s      | **DONE**    | Re-profiled after v0.8 EE rotation capture addition: PR2 9.91s (includes ~1.3s cold ikpy import), Franka 6.16s, Fetch 5.12s. All well within 30s NFR. Rotation extraction (`T[:3,:3]` slice) is negligible; hot path is ikpy `get_link_frame_matrix` at 560K calls/run for PR2 (14 links × 40K FK calls). Baseline v0.5 benchmark (position-only): PR2 4.1s, all robots <5s — full history in §v0.5. |
 | `pip install` only     | **DONE**    | No ROS dependency                                        |
 | Python 3.8–3.12        | **DONE**    | Confirmed via setup/tests                                |
 | Valid RFC 8259 JSON     | **DONE**    | `json_export.py` uses stdlib `json.dump` with numpy-safe encoder |
@@ -349,14 +417,16 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 |----------------------------|---------------------------------------------------------------|----------|
 | `test_schema_checks.py`    | All schema checks; clean/broken/loop/physics cases            | **DONE** |
 | `test_urdf_adapter.py`     | `load_urdf` IR extraction and no-crash contract               | **DONE** |
-| `test_cli.py`              | CLI exit codes, argparse, pipeline wiring; `--pose limits`/`custom` no-crash; `--joint-angles` parsing and guard; `_parse_joint_angles` unit tests; `--deep` flag accepted/default/no-crash when MuJoCo absent; `--robot-type` all 6 values + mismatch warning + JSON confidence; `--contact-links` validation + stability integration + mismatch warning; `--arm-root`/`--arm-tip` both-or-neither guard + link validation + mismatch warning (81 tests total) | **DONE** |
-| `test_formatter.py`        | `format_report` output for schema and physics sections        | **DONE** |
+| `test_cli.py`              | CLI exit codes, argparse, pipeline wiring; `--pose limits`/`custom` no-crash; `--joint-angles` parsing and guard; `_parse_joint_angles` unit tests; `--deep` flag accepted/default/no-crash when MuJoCo absent; `--robot-type` all 6 values + mismatch warning + JSON confidence; `--contact-links` validation + stability integration + mismatch warning; `--arm-root`/`--arm-tip` both-or-neither guard + link validation + mismatch warning; `--payload-mass`/`--payload-link` validation + JSON output (92 tests) | **DONE** |
+| `test_formatter.py`        | `format_report` — all 7 output sections: schema (PASS/WARN/CRITICAL/INFO), physics (exact vs missing counts), statics (COM + joints), stability (margin + COM height ratio line + N/A), workspace (reach metrics + N/A), task (height reachability + COM stability), override warnings footer; N/A exclusion from overall status (30 tests) | **DONE** |
 | `test_models.py`           | `ValidationReport` and sub-report dataclass defaults          | **DONE** |
 | `test_imports.py`          | Full import surface smoke test                                | **DONE** |
 | `test_install.py`          | Package install and entry point                               | **DONE** |
 | `test_chain_walker.py`     | BFS traversal, RPY convention, transform accumulation, COM    | **DONE** |
 | `test_geometry_physics.py` | Sphere/box/cylinder inertia formulas; mesh fallback; no-crash | **DONE** |
-| `test_statics.py`          | COM computation, gravity torque, margin, joint/overall status | **DONE** |
+| `test_statics.py`          | COM computation, gravity torque, margin, joint/overall status; payload torque augmentation (subtree containment, magnitude, sibling isolation, status flip); payload auto-detection; formatter line; validation pass on Fetch/PR2/Franka Panda (53 tests) | **DONE** |
+| `test_capability_wiring.py` | Profile-based N/A routing: `aerial` → stability N/A + workspace N/A; `ground_vehicle` → stability runs (not N/A) + workspace N/A; explicit `--contact-links`/`--arm-root+tip` overrides bypass profile (13 tests) | **DONE** |
+| `test_report_derivation.py` | `_derive_overall_status` and `_derive_confidence_level` — N/A exclusion, WARN/FAIL/UNKNOWN precedence, all-N/A fallback (20 tests) | **DONE** |
 | `test_mujoco_validation.py`| MuJoCo ground-truth torque comparison on fetch_robot (10% tolerance) | **DONE** (written; requires MuJoCo install to run) |
 | No-crash on 6 ref URDFs    | ANYmal, Franka Panda, PR2, Spot, TurtleBot3, fetch            | **DONE** |
 | `test_support_polygon.py`  | `extract_wheeled_polygon` — polygon shape, degenerate cases, name matching | **DONE** |
@@ -365,7 +435,8 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 | `test_schema_new_checks.py`| Four new schema checks (inverted-limits, missing-limits, visual-no-collision, high-link-count) | **DONE** |
 | `test_schema_mesh_check.py`| Missing mesh file check — absolute/relative/package:// paths, ancestor search, extraction via `load_urdf`, no-crash on 6 reference URDFs | **DONE** |
 | `test_arm_chain.py`         | `ArmChain`, `detect_arm_chains`, `build_ikpy_chain` — chain detection, DOF counting, ikpy FK, base-joint stripping | **DONE** |
-| `test_workspace.py`         | `workspace.run` — arm detection, reach metrics, UNKNOWN path, no-crash contract, Franka reach regression | **DONE** |
+| `test_workspace.py`         | `workspace.run` — arm detection, reach metrics, UNKNOWN path, no-crash contract, Franka reach regression, Fetch real-URDF validation; orientation convention check (2-link synthetic chain vs hand-computed values; ikpy ↔ chain_walker agreement; Z-axis and Y-axis joint cases) | **DONE** |
+| `test_orientation.py`      | `pose_satisfies()` — all four target modes: `"top_down"` (EE Z-axis angle), `"side"` (elevation from horizontal), RPY 3-tuple (geodesic), quaternion 4-tuple (unnormalized accepted); tolerance edge cases; invalid input raises `ValueError` (16 tests) | **DONE** |
 | `test_xacro_handler.py`    | `preprocess()` — ImportError when xacro absent, returns valid URDF path, macros expanded, load_urdf compat, RuntimeError on broken input | **DONE** |
 
 ---

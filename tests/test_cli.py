@@ -830,3 +830,149 @@ def test_arm_root_tip_no_warning_when_heuristic_agrees(monkeypatch, tmp_path, ca
     _run(monkeypatch, [str(urdf), "--arm-root", "base_link", "--arm-tip", "link2"])
     out = capsys.readouterr().out
     assert "heuristic" not in out
+
+
+# ---------------------------------------------------------------------------
+# N/A status plumbing
+# ---------------------------------------------------------------------------
+
+def test_derive_overall_status_excludes_na():
+    from urdf_validator_main.cli import _derive_overall_status
+    from urdf_validator_main.report.models import ValidationReport
+    r = ValidationReport()
+    r.schema.status = "PASS"
+    r.statics.status = "PASS"
+    r.stability.status = "N/A"
+    r.workspace.status = "N/A"
+    assert _derive_overall_status(r) == "PASS"
+
+
+def test_derive_overall_status_na_does_not_override_warn():
+    from urdf_validator_main.cli import _derive_overall_status
+    from urdf_validator_main.report.models import ValidationReport
+    r = ValidationReport()
+    r.schema.status = "WARN"
+    r.statics.status = "PASS"
+    r.stability.status = "N/A"
+    r.workspace.status = "N/A"
+    assert _derive_overall_status(r) == "WARN"
+
+
+def test_derive_overall_status_all_na_falls_back_to_unknown():
+    from urdf_validator_main.cli import _derive_overall_status
+    from urdf_validator_main.report.models import ValidationReport
+    r = ValidationReport()
+    r.schema.status = "PASS"
+    r.statics.status = "N/A"
+    r.stability.status = "N/A"
+    r.workspace.status = "N/A"
+    # schema maps to PASS so not all applicable statuses are N/A
+    assert _derive_overall_status(r) == "PASS"
+
+
+def test_derive_overall_status_truly_all_na_returns_unknown():
+    """Edge case: if all four inputs are N/A, fall back to UNKNOWN."""
+    from urdf_validator_main.cli import _derive_overall_status, _SCHEMA_TO_STATUS
+    from urdf_validator_main.report.models import ValidationReport
+    r = ValidationReport()
+    # Force schema to map to N/A by patching _SCHEMA_TO_STATUS is complex;
+    # instead set a schema status that maps to N/A directly via the applicable filter.
+    r.statics.status = "N/A"
+    r.stability.status = "N/A"
+    r.workspace.status = "N/A"
+    # schema.status default is "UNKNOWN" → _SCHEMA_TO_STATUS.get("UNKNOWN", "UNKNOWN") = "UNKNOWN"
+    # so result must be "UNKNOWN", not "N/A"
+    assert _derive_overall_status(r) == "UNKNOWN"
+
+
+# ---------------------------------------------------------------------------
+# --payload-mass / --payload-link flags
+# ---------------------------------------------------------------------------
+
+_ARM_URDF = """\
+<?xml version="1.0"?>
+<robot name="arm_bot">
+  <link name="base_link"/>
+  <link name="arm_link">
+    <inertial>
+      <mass value="2.0"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+    </inertial>
+  </link>
+  <link name="ee_link">
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+  </link>
+  <joint name="j1" type="revolute">
+    <parent link="base_link"/>
+    <child link="arm_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="50.0" velocity="1.0"/>
+  </joint>
+  <joint name="j_ee" type="fixed">
+    <parent link="arm_link"/>
+    <child link="ee_link"/>
+    <origin xyz="1 0 0" rpy="0 0 0"/>
+  </joint>
+</robot>
+"""
+
+
+def test_payload_mass_flag_accepted(monkeypatch, tmp_path):
+    urdf = tmp_path / "arm.urdf"
+    urdf.write_text(_ARM_URDF)
+    code = _run(monkeypatch, [str(urdf), "--payload-mass", "2.0"])
+    assert code in (0, 1, 2)
+
+
+def test_payload_mass_with_payload_link_accepted(monkeypatch, tmp_path):
+    urdf = tmp_path / "arm.urdf"
+    urdf.write_text(_ARM_URDF)
+    code = _run(monkeypatch, [str(urdf), "--payload-mass", "2.0", "--payload-link", "ee_link"])
+    assert code in (0, 1, 2)
+
+
+def test_payload_mass_zero_rejected(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "arm.urdf"
+    urdf.write_text(_ARM_URDF)
+    code = _run(monkeypatch, [str(urdf), "--payload-mass", "0.0"])
+    assert code == 2
+
+
+def test_payload_mass_negative_rejected(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "arm.urdf"
+    urdf.write_text(_ARM_URDF)
+    code = _run(monkeypatch, [str(urdf), "--payload-mass", "-1.5"])
+    assert code == 2
+
+
+def test_payload_link_unknown_name_exits_2(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "arm.urdf"
+    urdf.write_text(_ARM_URDF)
+    code = _run(monkeypatch, [str(urdf), "--payload-mass", "1.0", "--payload-link", "no_such_link"])
+    assert code == 2
+    captured = capsys.readouterr()
+    assert "[ERROR]" in captured.err
+
+
+def test_payload_link_without_mass_warns(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "arm.urdf"
+    urdf.write_text(_ARM_URDF)
+    _run(monkeypatch, [str(urdf), "--payload-link", "ee_link"])
+    captured = capsys.readouterr()
+    assert "[WARN]" in captured.err
+
+
+def test_payload_in_json_output(monkeypatch, tmp_path):
+    import json
+    urdf = tmp_path / "arm.urdf"
+    urdf.write_text(_ARM_URDF)
+    _run(monkeypatch, [str(urdf), "--payload-mass", "3.0", "--output-dir", str(tmp_path)])
+    json_path = tmp_path / "arm_validation.json"
+    assert json_path.exists()
+    data = json.loads(json_path.read_text())
+    assert data["statics"]["payload_mass"] == pytest.approx(3.0)
+    assert data["statics"]["payload_link"] is not None

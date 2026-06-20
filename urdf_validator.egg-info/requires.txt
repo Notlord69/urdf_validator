@@ -1,13 +1,13 @@
 urdf_parser_py
 numpy
 shapely
+ikpy
 
 [dev]
 pytest
 
-[full]
-ikpy
-xacro
-
 [mujoco]
 mujoco
+
+[xacro]
+xacro
