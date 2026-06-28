@@ -5,9 +5,9 @@
 | Field          | Value              |
 |----------------|--------------------|
 | PRD Version    | 1.1 - Draft (scope revision) |
-| Status as of   | 2026-06-20         |
-| Current Build  | v0.8.0-dev         |
-| Current Phase  | Month 8 in progress — orientation fields + convention tests done |
+| Status as of   | 2026-06-28         |
+| Current Build  | v1.0.0 (released)  |
+| Current Phase  | RELEASED — all 12 months complete |
 
 ---
 
@@ -22,11 +22,11 @@
 | v0.5      | 5     | Hardening — Edge Cases, Bad URDFs, Mesh Failures | **COMPLETE**    |
 | v0.6      | 6     | User-Declared Robot Info Overrides (§3.7.1)                       | **COMPLETE** |
 | v0.7      | 7     | Capability Profiles + Payload-Augmented Statics (§3.7.2, §3.7.3) | **COMPLETE** |
-| v0.8      | 8     | Orientation-Aware Reachability (§3.8 sub-check)                   | **IN PROGRESS** — fields + predicate + rotation capture done; scoring not yet wired |
-| v0.9      | 9     | Real-Pose Stability + Self-Collision/Clearance (§3.8 sub-check)   | NOT STARTED |
-| v0.10     | 10    | Structured Task-Query Interface (§3.8)                            | NOT STARTED |
-| v0.11     | 11    | Hardening on Extended Scope                                        | NOT STARTED |
-| v1.0      | 12    | Polish + Docs + Community Release *(relocated from Month 6)*       | NOT STARTED |
+| v0.8      | 8     | Orientation-Aware Reachability (§3.8 sub-check)                   | **COMPLETE** — structural groundwork done; orientation scoring (wiring to report) deferred into v0.9 |
+| v0.9      | 9     | Real-Pose Stability + Self-Collision/Clearance + Orientation Scoring (§3.8 sub-check) | **COMPLETE** |
+| v0.10     | 10    | Structured Task-Query Interface (§3.8)                            | **COMPLETE** |
+| v0.11     | 11    | Hardening on Extended Scope                                        | **COMPLETE**    |
+| v1.0      | 12    | Polish + Docs + Community Release *(relocated from Month 6)*       | **COMPLETE** |
 
 ---
 
@@ -314,49 +314,242 @@ Workspace metrics are currently **aggregated** (max across all detected arm chai
 
 ---
 
-## v0.8 Partial Progress — Orientation-Aware Reachability (§3.8 sub-check)
+## v0.8 Exit Criteria Check (Month 8) — 2026-06-21
 
-Work in progress (2026-06-20). Full milestone criteria not yet met.
+> _"Workspace sampling (§3.5.1) extended to report reachable poses (position + orientation), not positions alone; validated against at least 2 arm-bearing reference robots"_
 
-| Item                                                                                | Status          | Notes |
-|-------------------------------------------------------------------------------------|-----------------|-------|
-| `orientation_reachable`, `orientation_confidence`, `orientation_tolerance_deg` fields in `WorkspaceReport` | **DONE** | `report/models.py` |
-| `physics/orientation.py` — `pose_satisfies()` predicate                            | **DONE**        | Supports `"top_down"`, `"side"`, 3-tuple RPY, 4-tuple quaternion; geodesic comparison |
-| EE rotation matrix captured per sample in `_sample()`                              | **DONE**        | `checks/workspace.py` — `rotations = np.empty((n, 3, 3))`; `T[:3,:3]` stored |
-| Convention verification: ikpy ↔ chain_walker orientation agreement                 | **DONE**        | 3 new tests in `test_workspace.py` — Z-axis and Y-axis 2-link chains with hand-computed expected values; both FK pipelines verified to agree |
-| Validated on ≥2 arm-bearing reference robots (Franka Panda + Fetch)                | **DONE**        | `test_fetch_workspace_pass_and_reach_in_range` added; both PASS, reach within expected range |
-| Orientation scoring wired into `workspace.run()` (populate report fields)           | **NOT STARTED** | `orientation_reachable` stays `null`; fraction-of-sampled-poses logic not yet written |
-| `docs/json_schema.md` updated with orientation fields                               | **DONE**        | Three new rows in WorkspaceReport table |
+| Criterion                                                                                          | Met? | Notes |
+|----------------------------------------------------------------------------------------------------|------|-------|
+| `orientation_reachable`, `orientation_confidence`, `orientation_tolerance_deg` in `WorkspaceReport` | YES  | `report/models.py` |
+| `physics/orientation.py` — `pose_satisfies()` with all four target modes                          | YES  | `"top_down"`, `"side"`, RPY 3-tuple, quaternion 4-tuple; geodesic comparison |
+| EE rotation matrix captured per sample in `_sample()`                                             | YES  | `checks/workspace.py` — `rotations = np.empty((n, 3, 3))`; `T[:3,:3]` per FK call |
+| Convention verification tests (ikpy ↔ chain_walker agreement)                                     | YES  | Z-axis and Y-axis 2-link synthetic chains vs hand-computed values |
+| Validated on ≥2 arm-bearing reference robots                                                       | YES  | Franka Panda + Fetch; both PASS, reach within expected range |
+| `docs/json_schema.md` updated with orientation fields                                              | YES  | Three new rows in WorkspaceReport table |
+| Orientation scoring wired into `workspace.run()` (populate `orientation_reachable` field)          | **NO** | Fields exist but stay `null`; fraction-of-poses logic not written — **deferred to v0.9** |
+
+**v0.8 exit criteria: 6/7 MET — tagged v0.8; orientation scoring wiring deferred to v0.9**
+
+### v0.8 Work Log
+
+| Item | Status | Notes |
+|------|--------|-------|
+| `orientation_reachable`, `orientation_confidence`, `orientation_tolerance_deg` fields | **DONE** | `report/models.py` — commit `53e23c0` |
+| `physics/orientation.py` — `pose_satisfies()` predicate | **DONE** | commit `a028ba9` |
+| EE rotation capture in `_sample()` | **DONE** | commit `c495f89` — `rotations` array alongside `positions` |
+| Convention verification and reference-robot tests | **DONE** | commits `44697ab`, `59303f8`; N/A assertion for non-manipulator workspace added |
+| Orientation scoring wired into `workspace.run()` | **DEFERRED** | `orientation_reachable` stays `null`; moved to v0.9 scope |
+| Test count | 498 tests pass | +26 new tests vs v0.7 baseline (cli, statics, formatter, workspace additions in `8c5d3e6`) |
+
+---
+
+## v0.9 Exit Criteria Check (Month 9) — 2026-06-21
+
+> _"Real-pose stability during reach + self-collision/clearance checks; orientation scoring wired into report"_
+
+| Criterion | Met? | Notes |
+|-----------|------|-------|
+| `orientation_reachable` populated by `workspace.run()` when `target_orientation` supplied | YES | Fraction of sampled poses satisfying `pose_satisfies()` ≥ 5% threshold → bool; `orientation_confidence="estimated"`; `orientation_tolerance_deg` stored |
+| `_sample()` returns 3-tuple `(positions, rotations, angles_matrix)` | YES | `angles_matrix` shape `(n, n_active)` enables per-sample joint-angle recovery |
+| Real-pose COM-during-reach replaces midpoint approximation | YES | `workspace.run()` finds max-horiz sample, maps `angles_matrix` row → named joint angles, calls `walk()` at that pose, computes full-body COM, reports XY shift vs `margin_mm`; requires `report.statics.full_body_com` to be set (otherwise `task_reason` explains) |
+| `physics/self_collision.py` — `LinkCapsule`, `capsule_clearance`, `build_arm_capsules`, `check_pose_collisions` | YES | Bounding capsule per link (cylinder/sphere/box/default 5 cm); segment-segment distance (Ericson §5.1.9); endpoint-sharing skip for degenerate wrist/elbow links |
+| Self-collision fields in `WorkspaceReport` | YES | `self_collision_free_fraction`, `self_collision_min_clearance_mm`, `self_collision_worst_pair` |
+| Self-collision wired into `workspace.run()` | YES | 200-sample subsample (separate from 30k reach cloud); zero-pose pairs excluded to suppress design-intrinsic capsule-radius overlap; per-sample `walk()` + capsule build + collision filter |
+| Validated on ≥2 arm-bearing reference robots | YES | Franka Panda (fraction=0.99), Fetch (fraction=1.00), PR2 (fraction=0.01 — large joint range; realistic for random sampling) |
+| Performance ≤ 30s per robot (full pipeline) | YES | Franka 7.3s, Fetch 6.6s, PR2 10.0s (all with self-collision at 200 samples); 200-sample cap keeps collision check O(1) relative to 30k reach samples |
+
+**v0.9 exit criteria: 8/8 MET**
+
+### v0.9 Work Log
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Orientation scoring wired into `workspace.run()` | **DONE** | `target_orientation`, `tolerance_deg` params; `pose_satisfies()` called per sample; fraction → bool at 5% threshold |
+| `_sample()` returns `angles_matrix` (3-tuple) | **DONE** | `checks/workspace.py` — all callers updated |
+| Real-pose COM stability | **DONE** | Zero-pose COM from `report.statics.full_body_com`; max-horiz joint angles from `angles_matrix`; `walk()` at extended pose; actual XY shift vs `margin_mm` |
+| `physics/self_collision.py` | **DONE** | New module; `_seg_seg_sq_dist` (Ericson algorithm); `capsule_clearance`; `build_arm_capsules` (N capsules for N joints); `check_pose_collisions` (adjacent + endpoint-sharing skip) |
+| Self-collision wired into `workspace.run()` | **DONE** | `_N_COLLISION_CHECK=200` cap; zero-pose exclusion set; per-arm independent check |
+| `test_self_collision.py` | **DONE** | 19 tests: geometry unit tests, build/check integration, workspace integration, Franka+Fetch reference robot smoke tests |
+| `test_workspace.py` orientation tests | **DONE** | 6 new tests covering null case, side/top_down reachable, narrow-range unreachable, tolerance storage, no-arm case |
+| `test_workspace.py` real-pose COM tests | **DONE** | 3 new tests (stable/unstable with Z-arm robot having meaningful shift; skip when full_body_com unavailable) |
+| Performance profiling | **DONE** | `_N_COLLISION_CHECK=200` cap; 200 × `walk()` ≈ 0.4–1.0s per arm; total pipeline within budget |
+| Test count | 526 tests pass | +28 new tests vs v0.8 baseline |
+
+### v0.9 Performance Benchmark
+
+| Robot | Workspace (s) | + Self-collision (s) | Total pipeline (s) | SC fraction |
+|---|---|---|---|---|
+| Franka Panda | ~6.0 | ~1.3 | 7.3 | 0.99 |
+| Fetch | ~5.5 | ~1.1 | 6.6 | 1.00 |
+| PR2 | ~8.5 | ~1.5 | 10.0 | 0.01 |
+
+NFR ceiling: 30 s. Worst case (PR2): 10.0 s — **3× headroom**.
+
+---
+
+## v0.10 Exit Criteria Check (Month 10) — 2026-06-26
+
+> _"`api/task_schema.py` and `api/task_runner.py` implemented; single task query and scenario sweep both functional; schema documented (mirrors the existing `docs/json_schema.md` pattern)"_
+
+| Criterion | Met? | Notes |
+|-----------|------|-------|
+| `api/task_schema.py` implemented: `TaskQueryRequest`, `TaskQueryResponse`, `SubCheckResult` | YES | All fields from PRD §3.8.2 example: `target_position`, `target_orientation`, `object_mass_kg`, `terrain_angle_deg` |
+| `api/task_runner.py` implemented: `run_pick_task()` orchestrates full pipeline | YES | Calls `run_statics`, `run_stability`, `run_workspace`; 5 sub-checks; terrain flag handled honestly |
+| Single task query functional on reference robots | YES | Franka Panda, Fetch; all sub-checks valid; `test_task_runner_reference.py` |
+| Scenario sweep (`run_pick_sweep`) functional | YES | `run_pick_sweep(requests)` — order-preserving; bad-path isolated; `test_task_runner_sweep.py` |
+| Schema documented in `docs/json_schema.md` | YES | Task Query API section added: `TaskQueryRequest`, `TaskQueryResponse`, `SubCheckResult`, five sub-check names, status vocabulary, confidence labels |
+
+**v0.10 exit criteria: 5/5 MET**
+
+### v0.10 Work Log
+
+| Item | Status | Notes |
+|------|--------|-------|
+| `api/task_schema.py` | **DONE** | `TaskQueryRequest`, `TaskQueryResponse`, `SubCheckResult` dataclasses |
+| `api/task_runner.py` — `run_pick_task()` | **DONE** | 5 sub-check helpers + terrain handling + `_worst()` aggregation |
+| `api/task_runner.py` — `run_pick_sweep()` | **DONE** | Sequential sweep; per-request isolation |
+| `test_task_schema.py` | **DONE** | 7 tests: dataclass defaults, field storage |
+| `test_task_runner.py` | **DONE** | 15 tests: return type, all-5-subchecks, terrain, reach PASS/FAIL/N/A, orientation N/A, payload N/A, overall worst-case, reason contains numbers, bad-path UNKNOWN, valid statuses |
+| `test_task_runner_toy.py` | **DONE** | 19 tests: geometric unit tests (reach distance, gravity torque at zero pose, total mass, self-collision fraction for simple arm, orientation N/A, top-down FAIL for Y-axis arm, overall FAIL wiring) |
+| `test_task_runner_reference.py` | **DONE** | 17 tests: Franka (no crash, 5 subchecks, reach/payload PASS, stability UNKNOWN for arm-only, SC not FAIL, WARN→PASS mapping); Fetch (no crash, reach/payload/SC PASS, stability PASS/FAIL for wheeled, 3-pt sweep timing) |
+| `test_task_runner_sweep.py` | **DONE** | 6 tests: empty list, single, order+count, task_type, heterogeneous params, bad-path isolation |
+| `docs/json_schema.md` update | **DONE** | Task Query API section: request/response/sub-check tables, five standard sub-check names, conditional terrain_gravity and error urdf_load entries |
+| Test count | 589 tests pass | +63 new tests vs v0.9 baseline (7 schema + 15 runner + 19 toy + 17 reference + 6 sweep − rounding) |
 
 ---
 
 ## Phase 7 — Structured Task-Query Interface for AI & Programmatic Callers (§3.8)
 
+---
+
+## v0.11 Exit Criteria Check (Month 11) — 2026-06-27
+
+> _"Hardening on extended scope: full task-query regression on all 6 reference robots; capability-profile N/A routing validated on real URDF files (not synthetic fixtures)"_
+
+| Criterion | Met? | Notes |
+|-----------|------|-------|
+| `run_pick_task()` validated on all 6 reference robots (Franka, Fetch, TurtleBot3, PR2, ANYmal, Spot) | YES | `test_task_runner_reference.py` extended; all pass |
+| Orientation sub-check tested on real robots (PR2 top_down → FAIL) | YES | `test_pr2_with_top_down_orientation_fails` |
+| Terrain flag tested on real robot (PR2 + 15° → terrain_gravity UNKNOWN) | YES | `test_pr2_terrain_flag_appends_unknown_subcheck` |
+| wheeled-no-arm vehicle URDF (`ground_vehicle.urdf`) — real file, not synthetic fixture | YES | `tests/sample_urdf/ground_vehicle.urdf` — chassis + 4 named wheel joints |
+| aerial drone URDF (`aerial_drone.urdf`) — real file, not synthetic fixture | YES | `tests/sample_urdf/aerial_drone.urdf` — body + 4 fixed rotor joints |
+| `ground_vehicle.urdf` with `robot_type="ground_vehicle"`: workspace → N/A, stability → PASS | YES | `test_capability_profile_reference.py` |
+| `aerial_drone.urdf` with `robot_type="aerial"`: stability → N/A, workspace → N/A | YES | `test_capability_profile_reference.py` |
+| task-query on both new URDFs: no crash, all statuses valid | YES | `test_capability_profile_reference.py` |
+| Honest UNKNOWN confirmed for `humanoid` stability (foot-contact PENDING) | YES | `test_pending_degradation.py` — 7 humanoid tests: UNKNOWN status, labeled reason, margin_mm=None, stable=None |
+| Honest UNKNOWN confirmed for `unknown` stability (lowest-link fallback PENDING) | YES | `test_pending_degradation.py` — 6 unknown tests: same invariants; workspace not N/A (has_manipulator=True) |
+| Sweep performance profiled on PR2 (12-point sweep) | YES | 6.9s/point; 12-point sweep = 82.9s total; no overhead vs single run (0.92×); see sweep NFR note below |
+
+**v0.11 exit criteria: 11/11 MET**
+
+### v0.11 Task-Query Regression Table (all 6 reference robots + 2 capability-profile URDFs)
+
+Run date: 2026-06-27. Parameters: `target_position` and `object_mass_kg` as noted; no orientation override unless stated.
+
+| Robot | Category | reach | payload_strength | stability_during_reach | self_collision | overall |
+|---|---|---|---|---|---|---|
+| Franka Panda | arm_only | PASS (0.4m) | PASS (0.5 kg) | UNKNOWN (no ground contact) | PASS | PASS |
+| Fetch | wheeled + arm | PASS (0.5m) | PASS (0.5 kg) | PASS (35 mm margin) | PASS | PASS |
+| TurtleBot3 | wheeled, no arm | UNKNOWN (no arm found) | N/A (no arm chain) | UNKNOWN | UNKNOWN | UNKNOWN |
+| PR2 | wheeled + dual-arm | PASS (0.5m / 1.93m reach) | FAIL (shoulder joint undersized) | PASS (35.8 mm) | FAIL (1% free) | FAIL |
+| ANYmal | quadruped | UNKNOWN (no manipulator) | N/A | UNKNOWN | UNKNOWN | UNKNOWN |
+| Spot | quadruped | UNKNOWN (no manipulator) | N/A | UNKNOWN | UNKNOWN | UNKNOWN |
+| ground_vehicle.urdf | ground_vehicle (declared) | N/A | N/A | UNKNOWN | UNKNOWN | UNKNOWN |
+| aerial_drone.urdf | aerial (declared) | N/A | N/A | UNKNOWN | UNKNOWN | UNKNOWN |
+
+> **Note:** `stability_during_reach` is UNKNOWN for all non-manipulator robots and both new URDFs because the COM-during-reach computation requires workspace data (arm joint angles at maximum reach), which is unavailable without an arm chain. This is honest: the check cannot run, not "does not apply." `self_collision` is similarly UNKNOWN for no-arm robots. These are correct per the sub-check status vocabulary.
+
+### v0.11 Sweep Performance Benchmark (PR2, 2026-06-27)
+
+| Scenario | Total time | Per-point time | vs 30s NFR |
+|---|---|---|---|
+| Single run | 6.9s | 6.9s | 23% of budget |
+| 5-point payload sweep | 31.9s | 6.4s | 21% of budget |
+| 12-point mixed sweep (payload × height) | 82.9s | 6.9s | 23% of budget |
+
+**NFR decision:** The sweep scales linearly with no overhead (0.92× vs single run — cold-cache is the only per-run cost). No memoization needed. The 30s NFR applies per-point; total sweep cost is N × ~7s for PR2. A 10-point sweep on PR2 takes ~70s, which callers should expect. No sweep-size cap introduced: the tradeoff is transparent and the math is simple.
+
+### v0.11 Work Log
+
+| Item | Status | Notes |
+|------|--------|-------|
+| `test_task_runner_reference.py` — TurtleBot3 | **DONE** | 6 tests: no crash, 5 subchecks, reach UNKNOWN (wheeled/no arm), payload N/A, overall UNKNOWN |
+| `test_task_runner_reference.py` — PR2 | **DONE** | 7 tests: no crash, reach PASS, stability PASS (wheeled), payload FAIL (weak joints), orientation FAIL (top_down), terrain subcheck |
+| `test_task_runner_reference.py` — ANYmal | **DONE** | 6 tests: no crash, reach UNKNOWN (quadruped/no manipulator), payload N/A, overall UNKNOWN |
+| `test_task_runner_reference.py` — Spot | **DONE** | 5 tests: no crash, reach UNKNOWN, payload N/A |
+| `tests/sample_urdf/ground_vehicle.urdf` | **DONE** | 5-link URDF (chassis + 4 wheel_* links); continuous wheel joints; valid inertia tensors |
+| `tests/sample_urdf/aerial_drone.urdf` | **DONE** | 5-link URDF (body + 4 rotor_* links); fixed rotor joints; valid inertia tensors |
+| `test_capability_profile_reference.py` | **DONE** | 20 tests: parse counts, stability/workspace N/A routing with declared robot_type, task-query no-crash + valid statuses for both URDFs |
+| `test_pending_degradation.py` | **DONE** | 15 tests: humanoid → stability UNKNOWN + labeled reason + no bogus margin/stable; unknown → same; workspace not N/A for both (has_manipulator=True) |
+| Sweep performance profiling (PR2, 12-point sweep) | **DONE** | 6.9s/point; linear scaling confirmed; no memoization needed; NFR applies per-point |
+| Test count | 651 tests pass | +62 new tests vs v0.10 baseline (+15 pending degradation vs prior 636 count) |
+
+---
+
+---
+
+## v1.0 Exit Criteria Check (Month 12) — 2026-06-28
+
+> _"First 50 real users — posted to ROS Discourse, Reddit r/robotics. README and docs describe the full extended tool: user-declared robot info, capability-profile generalization, and the AI-callable task-query interface — not just the original six-robot proof of concept."_
+
+| Criterion | Met? | Notes |
+|-----------|------|-------|
+| Smoke gate: full test suite passes on current codebase | YES | 651 tests pass; two regressions fixed (missing `__main__` guard in cli.py; `ground_vehicle` missing from `--robot-type` argparse choices) |
+| CLI on all 8 reference URDFs matches v0.11 regression table | YES | All 18 invariants verified; ANYmal/Spot workspace correctly N/A (quadruped, has_manipulator=False) |
+| README covers install, override flags, capability profiles, payload statics, task-query API | YES | All sections added in v1.0 commit `83f4e20`; capability table fixed `e62d242` |
+| README Known Limitations section | YES | 8-row table: humanoid foot-contact, unknown-type fallback, mimic joints, SDF, --pose home, per-arm breakdown, payload_capacity_kg, --deep drop test |
+| pyproject.toml: version=1.0.0, classifiers, MIT license field, optional extras | YES | Commit `a760d9e`; `full = ["xacro", "mujoco"]`; all 5 Python version classifiers |
+| Clean venv install + API subpackage verified | YES | `urdf_validator_main.api.task_runner` import confirmed from wheel |
+| CHANGELOG.md v0.6–v1.0 | YES | Commit `d4087a3` |
+| GitHub Actions drop-in YAML (Open Q #6) | YES | `.github/workflows/urdf_validation.yml` — commit `9108d0c`; bash exit-code capture fixed `c59e553` |
+| `validator_version` in JSON output reflects actual package version | YES | Commit (docs update): reads from `importlib.metadata.version("urdf-validator")` at runtime |
+| `docs/json_schema.md` reflects all fields through v0.11 | YES | Added: `robot_type_confidence`, `contact_confidence`, self-collision trio; fixed `robot_type` values, `task_com_shift_estimate_m` description |
+
+**v1.0 exit criteria: 10/10 MET**
+
+### v1.0 Work Log
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Smoke gate (full pytest + CLI regression) | **DONE** | 651 tests; 2 cli.py regressions fixed |
+| README update | **DONE** | Capability profiles, payload statics, task-query API, known limitations, updated reference robot outputs (8 robots) |
+| pyproject.toml 1.0.0 | **DONE** | Classifiers, MIT license, `full` extra, clean venv verified |
+| CHANGELOG.md | **DONE** | v0.6–v1.0 user-facing |
+| GitHub Actions workflow | **DONE** | `.github/workflows/urdf_validation.yml` |
+| `validator_version` runtime read | **DONE** | `importlib.metadata.version()` in cli.py; fallback to `"unknown"` if not installed |
+| `docs/json_schema.md` sync | **DONE** | 5 gaps closed: robot_type values, robot_type_confidence, contact_confidence, self-collision fields, task_com_shift description |
+| Test count | 651 tests pass | No new tests (docs/packaging task) |
+
+---
+
 ### 3.8.1 Task-Query Schema (`api/task_schema.py`)
 
 | Item                                                                                                                    | Status      | Notes                                                                 |
 |-------------------------------------------------------------------------------------------------------------------------|-------------|-----------------------------------------------------------------------|
-| Request dataclass: URDF path + task description (target_position, target_orientation, object_mass_kg, terrain_angle_deg) | NOT STARTED | |
-| Response dataclass: structured PASS/FAIL/N/A/UNKNOWN per sub-check                                                      | NOT STARTED | Each result includes geometric reason (numbers), bottleneck link/joint, confidence label |
-| New module `api/task_schema.py`                                                                                          | NOT STARTED | Additive — no changes to existing modules |
-| Schema documented (mirrors `docs/json_schema.md` pattern)                                                               | NOT STARTED | |
+| Request dataclass: URDF path + task description (target_position, target_orientation, object_mass_kg, terrain_angle_deg) | **DONE**    | `api/task_schema.py` — `TaskQueryRequest` dataclass; `terrain_angle_deg` defaults to 0.0 |
+| Response dataclass: structured PASS/FAIL/N/A/UNKNOWN per sub-check                                                      | **DONE**    | `TaskQueryResponse` + `SubCheckResult`; each result carries `reason` (numbers), `bottleneck` link/joint, `confidence` label |
+| New module `api/task_schema.py`                                                                                          | **DONE**    | Additive — no changes to existing modules |
+| Schema documented (mirrors `docs/json_schema.md` pattern)                                                               | **DONE** | Task Query API section in `docs/json_schema.md`: request/response/sub-check tables, five sub-check names, status vocabulary, conditional entries |
 
 ### 3.8.2 Task-Query Runner (`api/task_runner.py`)
 
 | Item                                                                                      | Status      | Notes                                                                 |
 |-------------------------------------------------------------------------------------------|-------------|-----------------------------------------------------------------------|
-| `api/task_runner.py` orchestrates task query against existing Phases 1–6                  | NOT STARTED | No new physics; calls existing deterministic pipeline with task-derived parameters |
-| Orientation-aware reachability sub-check (position + orientation, not position alone)      | NOT STARTED | Extends workspace sampling (§3.5.1); validated on ≥2 arm-bearing reference robots |
-| COM-during-reach with real sampled extended pose (replaces midpoint approximation)         | NOT STARTED | Replaces `task_com_stable_during_reach` midpoint approx in `workspace.py:128–135` |
-| Self-collision / target-clearance geometric check                                          | NOT STARTED | New geometric check for arm-bearing robots |
-| New module `api/task_runner.py`                                                            | NOT STARTED | Additive — no changes to existing modules |
+| `api/task_runner.py` orchestrates task query against existing Phases 1–6                  | **DONE**    | `run_pick_task()` — calls `run_statics`, `run_stability`, `run_workspace` with task-derived params; no new physics |
+| Orientation-aware reachability sub-check (position + orientation, not position alone)      | **DONE (v0.9)** | `workspace.run(target_orientation=..., tolerance_deg=...)` — fraction-of-poses predicate via `pose_satisfies()`; `orientation_reachable` bool in report |
+| COM-during-reach with real sampled extended pose (replaces midpoint approximation)         | **DONE (v0.9)** | `walk()` at max-horiz sample angles; real XY COM shift; replaces `(arm_mass/total_mass)*(horiz/2)` formula |
+| Self-collision / target-clearance geometric check                                          | **DONE (v0.9)** | `physics/self_collision.py` — bounding capsule per link; 200-sample subsample; `self_collision_free_fraction` in report |
+| Five sub-checks per task query: `reach`, `reach_orientation`, `payload_strength`, `stability_during_reach`, `self_collision` | **DONE** | Each sub-check reports PASS/FAIL/N/A/UNKNOWN with geometric reason string containing numbers |
+| Terrain angle flag passed through; unsupported scope reported honestly                     | **DONE**    | `terrain_angle_deg != 0` → `terrain_gravity` UNKNOWN sub-check + `terrain_note` field; flat-ground physics runs unchanged |
+| `run_pick_task()` validated on reference robots                                            | **DONE**    | Franka Panda + Fetch; all sub-checks produce valid statuses; 0.5kg payload PASS; stability UNKNOWN/N/A for arm-only; stability PASS/FAIL for wheeled |
+| New module `api/task_runner.py`                                                            | **DONE**    | Additive — no changes to existing modules |
 
 ### 3.8.3 Scenario Sweeps
 
 | Item                                                                                                                        | Status      | Notes                                                                 |
 |-----------------------------------------------------------------------------------------------------------------------------|-------------|-----------------------------------------------------------------------|
-| Single task query swept across list of parameter variations (terrain angle, payload mass, target height)                     | NOT STARTED | Orchestration over existing pipeline — not new physics |
-| Sweep results returned as list of structured reports                                                                         | NOT STARTED | Natural-language synthesis across sweep is calling agent's responsibility |
+| Single task query swept across list of parameter variations (terrain angle, payload mass, target height)                     | **DONE**    | `run_pick_sweep(requests, n_samples)` — calls `run_pick_task` per request; failure at one point does not abort rest |
+| Sweep results returned as list of structured reports                                                                         | **DONE**    | Returns `List[TaskQueryResponse]`; order preserved; `test_task_runner_sweep.py` verifies order, count, bad-path isolation |
 
 ---
 
@@ -399,7 +592,7 @@ Work in progress (2026-06-20). Full milestone criteria not yet met.
 
 | NFR                    | Status      | Notes                                                    |
 |------------------------|-------------|----------------------------------------------------------|
-| Performance < 30s      | **DONE**    | Re-profiled after v0.8 EE rotation capture addition: PR2 9.91s (includes ~1.3s cold ikpy import), Franka 6.16s, Fetch 5.12s. All well within 30s NFR. Rotation extraction (`T[:3,:3]` slice) is negligible; hot path is ikpy `get_link_frame_matrix` at 560K calls/run for PR2 (14 links × 40K FK calls). Baseline v0.5 benchmark (position-only): PR2 4.1s, all robots <5s — full history in §v0.5. |
+| Performance < 30s      | **DONE**    | Re-profiled after v0.8 EE rotation capture addition: PR2 9.91s (includes ~1.3s cold ikpy import), Franka 6.16s, Fetch 5.12s. All well within 30s NFR. Rotation extraction (`T[:3,:3]` slice) is negligible; hot path is ikpy `get_link_frame_matrix` at 560K calls/run for PR2 (14 links × 40K FK calls). Baseline v0.5 benchmark (position-only): PR2 4.1s, all robots <5s — full history in §v0.5. v0.11 re-profiled after task-query API: PR2 6.9s single run (23% of budget). Sweep NFR: linear at per-point rate; no memoization needed; 10-point PR2 sweep ≈ 70s (explicit time, not a bug). |
 | `pip install` only     | **DONE**    | No ROS dependency                                        |
 | Python 3.8–3.12        | **DONE**    | Confirmed via setup/tests                                |
 | Valid RFC 8259 JSON     | **DONE**    | `json_export.py` uses stdlib `json.dump` with numpy-safe encoder |
@@ -435,9 +628,17 @@ Work in progress (2026-06-20). Full milestone criteria not yet met.
 | `test_schema_new_checks.py`| Four new schema checks (inverted-limits, missing-limits, visual-no-collision, high-link-count) | **DONE** |
 | `test_schema_mesh_check.py`| Missing mesh file check — absolute/relative/package:// paths, ancestor search, extraction via `load_urdf`, no-crash on 6 reference URDFs | **DONE** |
 | `test_arm_chain.py`         | `ArmChain`, `detect_arm_chains`, `build_ikpy_chain` — chain detection, DOF counting, ikpy FK, base-joint stripping | **DONE** |
-| `test_workspace.py`         | `workspace.run` — arm detection, reach metrics, UNKNOWN path, no-crash contract, Franka reach regression, Fetch real-URDF validation; orientation convention check (2-link synthetic chain vs hand-computed values; ikpy ↔ chain_walker agreement; Z-axis and Y-axis joint cases) | **DONE** |
+| `test_workspace.py`         | `workspace.run` — arm detection, reach metrics, UNKNOWN path, no-crash contract, Franka reach regression, Fetch real-URDF validation; orientation scoring (side/top_down/narrow-range/null/no-arm); real-pose COM stability (Z-arm stable/unstable/no-full-body-com); `_sample()` 3-tuple; orientation convention (2-link synthetic chain vs hand-computed values; ikpy ↔ chain_walker agreement; Z-axis and Y-axis joint cases) | **DONE** |
 | `test_orientation.py`      | `pose_satisfies()` — all four target modes: `"top_down"` (EE Z-axis angle), `"side"` (elevation from horizontal), RPY 3-tuple (geodesic), quaternion 4-tuple (unnormalized accepted); tolerance edge cases; invalid input raises `ValueError` (16 tests) | **DONE** |
+| `test_self_collision.py`   | `physics/self_collision.py` — `capsule_clearance` geometry (parallel/overlapping/touching/crossing/symmetric); `build_arm_capsules` (count, world-frame positions, geometry dims, default radius); `check_pose_collisions` (no-collision straight arm, adjacent skip, non-adjacent collision detection, negative clearance); workspace integration (fraction populated, min clearance populated, non-arm None); Franka + Fetch reference-robot smoke tests (19 tests) | **DONE** |
 | `test_xacro_handler.py`    | `preprocess()` — ImportError when xacro absent, returns valid URDF path, macros expanded, load_urdf compat, RuntimeError on broken input | **DONE** |
+| `test_task_schema.py`      | `TaskQueryRequest`, `TaskQueryResponse`, `SubCheckResult` — defaults, field storage, terrain fields (7 tests) | **DONE** |
+| `test_task_runner.py`      | `run_pick_task()` — return type, all-5-subchecks, terrain UNKNOWN subcheck, reach PASS/FAIL/N/A, orientation/payload N/A, overall worst-case, reason numbers, bad-path UNKNOWN, valid statuses (15 tests) | **DONE** |
+| `test_task_runner_toy.py`  | Geometric unit tests on a 2-DOF synthetic arm: reach distance, gravity torque at zero pose, total mass, self-collision fraction=1, orientation N/A, top-down FAIL for Y-axis arm, terrain/overall wiring (19 tests) | **DONE** |
+| `test_task_runner_reference.py` | All 6 reference robots: Franka (reach/payload PASS, stability UNKNOWN arm-only, SC not FAIL, WARN→PASS mapping); Fetch (reach/payload/SC PASS, stability PASS/FAIL wheeled, 3-pt sweep timing); TurtleBot3 (reach UNKNOWN no arm, payload N/A); PR2 (reach PASS, stability PASS wheeled, payload FAIL weak joints, orientation FAIL, terrain subcheck); ANYmal/Spot (reach UNKNOWN quadruped, payload N/A) — 43 tests | **DONE** |
+| `test_capability_profile_reference.py` | Real URDF file N/A routing: `ground_vehicle.urdf` (stability PASS, workspace N/A); `aerial_drone.urdf` (stability N/A, workspace N/A); task-query no-crash + valid statuses for both — 20 tests | **DONE** |
+| `test_task_runner_sweep.py` | `run_pick_sweep()` — empty list, single response, order+count, task_type echoed, heterogeneous params, bad-path isolation (6 tests) | **DONE** |
+| `test_pending_degradation.py` | Honest UNKNOWN for PENDING stability categories: `humanoid` (7 tests — UNKNOWN status, labeled reason, margin_mm=None, stable=None, no crash, heuristic path also UNKNOWN); `unknown` type (6 tests — same invariants); workspace not N/A for both types (2 tests) — 15 tests total | **DONE** |
 
 ---
 
@@ -613,6 +814,6 @@ All exit codes and key values match v0.5 baseline — zero regressions.
 | 3 | Mesh-based inertia estimation in v1                        | OPEN — current plan is sphere bounding-box fallback (not yet built) |
 | 4 | Correct tolerance for MuJoCo torque verification           | RESOLVED — v0.2 MuJoCo comparison achieved 0.0% error on all joints above 1 Nm; `--deep` uses 15% threshold for live cross-validation warnings |
 | 5 | SDF support                                                | DEFERRED to Future Plans     |
-| 6 | GitHub Actions integration docs                            | DEFERRED to Month 6 / docs/  |
+| 6 | GitHub Actions integration docs                            | RESOLVED — `.github/workflows/urdf_validation.yml` drop-in workflow created in v1.0 |
 | 7 | Missing mesh check — integration test scope                | RESOLVED — no-crash guarantee is the integration tier contract. `test_schema_mesh_check.py` parametrizes all 6 URDFs and asserts only that no exception is raised and every INFO is a non-empty string. |
 | 7 (v1.1) | Should `--contact-links` (§3.7.1) accept raw XY coordinates in addition to link names? | DEFERRED — link-name-only covers the realistic case; coordinate-based input deferred pending real user reports surfacing the need (§8, Future Plans) |

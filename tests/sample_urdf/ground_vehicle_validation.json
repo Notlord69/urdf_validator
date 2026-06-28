@@ -1,0 +1,214 @@
+{
+  "urdf_path": "tests/sample_urdf/ground_vehicle.urdf",
+  "robot_name": "ground_vehicle",
+  "robot_type": "ground_vehicle",
+  "robot_type_confidence": "exact",
+  "timestamp": "2026-06-28T08:18:37.777327+00:00",
+  "validator_version": "0.1.0",
+  "schema": {
+    "status": "PASS",
+    "critical_issues": [],
+    "warnings": [],
+    "infos": []
+  },
+  "links": [
+    {
+      "name": "chassis",
+      "mass": 100.0,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        3.75,
+        0.0,
+        0.0,
+        0.0,
+        9.08,
+        0.0,
+        0.0,
+        0.0,
+        11.33
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "wheel_fl",
+      "mass": 5.0,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.032,
+        0.0,
+        0.0,
+        0.0,
+        0.032,
+        0.0,
+        0.0,
+        0.0,
+        0.056
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "wheel_fr",
+      "mass": 5.0,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.032,
+        0.0,
+        0.0,
+        0.0,
+        0.032,
+        0.0,
+        0.0,
+        0.0,
+        0.056
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "wheel_rl",
+      "mass": 5.0,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.032,
+        0.0,
+        0.0,
+        0.0,
+        0.032,
+        0.0,
+        0.0,
+        0.0,
+        0.056
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    },
+    {
+      "name": "wheel_rr",
+      "mass": 5.0,
+      "mass_confidence": "exact",
+      "inertia_tensor": [
+        0.032,
+        0.0,
+        0.0,
+        0.0,
+        0.032,
+        0.0,
+        0.0,
+        0.0,
+        0.056
+      ],
+      "inertia_confidence": "exact",
+      "com_offset": null,
+      "com_confidence": "missing"
+    }
+  ],
+  "statics": {
+    "joints": [
+      {
+        "name": "j_wheel_fl",
+        "required_torque_gravity": 0.0,
+        "torque_confidence": "estimated",
+        "declared_effort": 50.0,
+        "margin": null,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 torque negligible"
+      },
+      {
+        "name": "j_wheel_fr",
+        "required_torque_gravity": 0.0,
+        "torque_confidence": "estimated",
+        "declared_effort": 50.0,
+        "margin": null,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 torque negligible"
+      },
+      {
+        "name": "j_wheel_rl",
+        "required_torque_gravity": 0.0,
+        "torque_confidence": "estimated",
+        "declared_effort": 50.0,
+        "margin": null,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 torque negligible"
+      },
+      {
+        "name": "j_wheel_rr",
+        "required_torque_gravity": 0.0,
+        "torque_confidence": "estimated",
+        "declared_effort": 50.0,
+        "margin": null,
+        "status": "PASS",
+        "subtree_mass": null,
+        "summary": "OK \u2014 torque negligible"
+      }
+    ],
+    "full_body_com": [
+      0.0,
+      0.0,
+      -0.025
+    ],
+    "com_confidence": "estimated",
+    "total_mass": 120.0,
+    "mass_confidence": "estimated",
+    "status": "PASS",
+    "com_height_above_ground": -0.025,
+    "heaviest_link_name": "chassis",
+    "heaviest_link_pct": 83.33333333333334,
+    "mass_split_warning": null,
+    "weakest_joint_name": null,
+    "payload_capacity_kg": null,
+    "payload_mass": null,
+    "payload_link": null,
+    "reason": null
+  },
+  "stability": {
+    "stable": true,
+    "margin_mm": 299.99999999999994,
+    "tip_direction": "N",
+    "com_height_ratio": null,
+    "com_height_ratio_confidence": "missing",
+    "com_height_ratio_class": null,
+    "tipping_angle_deg": null,
+    "status": "PASS",
+    "reason": null,
+    "deep_validated": false,
+    "contact_confidence": "estimated"
+  },
+  "workspace": {
+    "max_reach": null,
+    "reach_confidence": "missing",
+    "vertical_reach": null,
+    "horizontal_reach": null,
+    "status": "N/A",
+    "reach_from_base": null,
+    "reason": "not applicable \u2014 robot type 'ground_vehicle' has no manipulator",
+    "task": null,
+    "task_target_height_m": null,
+    "task_height_reachable": null,
+    "task_com_stable_during_reach": null,
+    "task_com_shift_estimate_m": null,
+    "task_reason": null,
+    "orientation_reachable": null,
+    "orientation_confidence": "missing",
+    "orientation_tolerance_deg": null,
+    "self_collision_free_fraction": null,
+    "self_collision_min_clearance_mm": null,
+    "self_collision_worst_pair": null
+  },
+  "overall_status": "PASS",
+  "critical_issues": [],
+  "warnings": [
+    "User declared --robot-type=ground_vehicle, but link-name heuristic suggests wheeled"
+  ],
+  "unknowns": [],
+  "confidence_level": "HIGH"
+}

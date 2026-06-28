@@ -1,6 +1,20 @@
 Metadata-Version: 2.4
 Name: urdf-validator
-Version: 0.7.0
+Version: 1.0.0
+Summary: Physics-aware URDF validation for the ROS 2 community
+License: MIT
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Software Development :: Testing
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Operating System :: OS Independent
 Requires-Python: >=3.8
 License-File: LICENSE
 Requires-Dist: urdf_parser_py
@@ -11,6 +25,9 @@ Provides-Extra: xacro
 Requires-Dist: xacro; extra == "xacro"
 Provides-Extra: mujoco
 Requires-Dist: mujoco; extra == "mujoco"
+Provides-Extra: full
+Requires-Dist: xacro; extra == "full"
+Requires-Dist: mujoco; extra == "full"
 Provides-Extra: dev
 Requires-Dist: pytest; extra == "dev"
 Dynamic: license-file

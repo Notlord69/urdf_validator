@@ -277,37 +277,25 @@ def test_task_name_without_height_records_task_not_reachable():
 # COM-during-reach (Option B — midpoint arm COM approximation)
 # ---------------------------------------------------------------------------
 
-def test_com_stable_when_shift_well_below_margin():
-    # arm: 2 kg of 10 kg total, 1 m horizontal reach
-    # shift = (2/10) * (1.0/2) = 0.1 m = 100 mm < 1000 mm margin → stable
+def test_com_stable_skipped_when_full_body_com_not_set():
+    # Real-pose COM requires full_body_com; without it the result is None with a reason.
     report = ValidationReport()
     report.statics.total_mass = 10.0
     report.stability.margin_mm = 1000.0
-    run(_one_dof_arm(), report, n_samples=2000,
+    run(_one_dof_arm(), report, n_samples=500,
         task_name="pick_from_table", task_height_m=0.5)
-    assert report.workspace.task_com_stable_during_reach is True
-    assert report.workspace.task_com_shift_estimate_m == pytest.approx(0.1, abs=0.03)
+    assert report.workspace.task_com_stable_during_reach is None
+    assert report.workspace.task_reason is not None
 
 
-def test_com_unstable_when_shift_above_margin():
-    # arm: 9 kg of 10 kg, 1 m horizontal reach
-    # shift = (9/10) * 0.5 = 0.45 m = 450 mm > 10 mm margin → unstable
-    robot = ParsedRobot(
-        name="r",
-        links=[_link("base", 0.0), _link("j1_link", 0.0), _link("arm", 9.0)],
-        joints=[
-            _joint("j1", "base", "j1_link", joint_type="revolute",
-                   axis=[0, 1, 0], lower=-3.14, upper=3.14),
-            _joint("j_ext", "j1_link", "arm", joint_type="fixed",
-                   xyz=[1.0, 0.0, 0.0]),
-        ],
-    )
+def test_com_skipped_when_no_margin_and_no_full_body_com():
     report = ValidationReport()
     report.statics.total_mass = 10.0
-    report.stability.margin_mm = 10.0
-    run(robot, report, n_samples=2000,
+    report.stability.margin_mm = None
+    run(_one_dof_arm(), report, n_samples=500,
         task_name="pick_from_table", task_height_m=0.5)
-    assert report.workspace.task_com_stable_during_reach is False
+    assert report.workspace.task_com_stable_during_reach is None
+    assert report.workspace.task_reason is not None
 
 
 def test_com_stability_unknown_when_no_stability_margin():
@@ -422,17 +410,17 @@ def test_sample_returns_positions_and_rotations():
     robot = _one_dof_robot()
     arm = build_chain_from_bounds(robot, "base", "ee")
     ikpy_chain, active_mask = build_ikpy_chain(arm)
-    result = _sample(ikpy_chain, active_mask, n=20)
-    positions, rotations = result
+    positions, rotations, angles_mat = _sample(ikpy_chain, active_mask, n=20)
     assert positions.shape == (20, 3)
     assert rotations.shape == (20, 3, 3)
+    assert angles_mat.shape[0] == 20
 
 
 def test_sample_rotations_are_valid_rotation_matrices():
     robot = _one_dof_robot()
     arm = build_chain_from_bounds(robot, "base", "ee")
     ikpy_chain, active_mask = build_ikpy_chain(arm)
-    _, rotations = _sample(ikpy_chain, active_mask, n=30)
+    _, rotations, _ = _sample(ikpy_chain, active_mask, n=30)
     for R in rotations:
         assert abs(np.linalg.det(R) - 1.0) < 1e-5, f"det(R) = {np.linalg.det(R)}"
         assert np.allclose(R @ R.T, np.eye(3), atol=1e-5), "R is not orthogonal"
@@ -442,7 +430,7 @@ def test_sample_positions_unchanged_in_shape():
     robot = _one_dof_robot()
     arm = build_chain_from_bounds(robot, "base", "ee")
     ikpy_chain, active_mask = build_ikpy_chain(arm)
-    positions, _ = _sample(ikpy_chain, active_mask, n=15)
+    positions, _, _ = _sample(ikpy_chain, active_mask, n=15)
     assert positions.shape == (15, 3)
 
 
@@ -566,3 +554,155 @@ def test_ikpy_and_chain_walker_agree_on_orientation():
                                err_msg="ikpy and chain_walker EE rotation disagree")
     np.testing.assert_allclose(p_ikpy, p_walker, atol=1e-9,
                                err_msg="ikpy and chain_walker EE position disagree")
+
+
+# ---------------------------------------------------------------------------
+# Orientation scoring
+# ---------------------------------------------------------------------------
+
+def _z_arm_robot(arm_mass: float = 2.0, base_mass: float = 8.0) -> ParsedRobot:
+    """1-DOF arm with EE offset in +Z at zero pose.
+
+    Joint: Y-axis revolute at origin, limits [-π/2, π/2].
+    At θ=0: EE at [0, 0, 1] (pointing up).
+    At θ=π/2: EE at [1, 0, 0] (max horizontal reach).
+    """
+    return ParsedRobot(
+        name="z_arm",
+        links=[
+            ParsedLink(name="base", mass=base_mass, inertia_3x3=None,
+                       joint_type_incoming=None,
+                       visual_geometry_type=None, collision_geometry_type=None),
+            ParsedLink(name="j1_link", mass=0.0, inertia_3x3=None,
+                       joint_type_incoming=None,
+                       visual_geometry_type=None, collision_geometry_type=None),
+            ParsedLink(name="arm", mass=arm_mass, inertia_3x3=None,
+                       joint_type_incoming=None,
+                       visual_geometry_type=None, collision_geometry_type=None),
+        ],
+        joints=[
+            ParsedJoint(
+                name="j1", joint_type="revolute",
+                parent="base", child="j1_link",
+                limit_lower=-math.pi / 2, limit_upper=math.pi / 2,
+                limit_effort=None, limit_velocity=None,
+                origin_xyz=[0.0, 0.0, 0.0], origin_rpy=[0.0, 0.0, 0.0],
+                axis=[0.0, 1.0, 0.0],
+            ),
+            ParsedJoint(
+                name="j_ext", joint_type="fixed",
+                parent="j1_link", child="arm",
+                limit_lower=None, limit_upper=None,
+                limit_effort=None, limit_velocity=None,
+                origin_xyz=[0.0, 0.0, 1.0], origin_rpy=[0.0, 0.0, 0.0],
+            ),
+        ],
+    )
+
+
+def test_orientation_fields_null_when_no_target_orientation():
+    report = ValidationReport()
+    run(_one_dof_arm(), report, n_samples=200)
+    assert report.workspace.orientation_reachable is None
+    assert report.workspace.orientation_confidence == "missing"
+    assert report.workspace.orientation_tolerance_deg is None
+
+
+def test_orientation_reachable_true_for_side_on_wide_range_arm():
+    """1-DOF Y-axis arm sweeps XZ plane; 'side' (horizontal EE Z) is reachable near θ=0."""
+    report = ValidationReport()
+    run(_one_dof_arm(), report, n_samples=2000,
+        target_orientation="side", tolerance_deg=20.0)
+    assert report.workspace.orientation_reachable is True
+    assert report.workspace.orientation_confidence == "estimated"
+    assert report.workspace.orientation_tolerance_deg == 20.0
+
+
+def test_orientation_reachable_true_for_top_down_on_wide_range_arm():
+    """1-DOF Y-axis arm can reach θ≈π where EE Z-axis → [0,0,-1] (top_down)."""
+    report = ValidationReport()
+    run(_one_dof_arm(), report, n_samples=2000,
+        target_orientation="top_down", tolerance_deg=15.0)
+    assert report.workspace.orientation_reachable is True
+
+
+def test_orientation_reachable_false_when_range_too_small():
+    """Arm limited to θ ∈ [0, π/4] cannot reach 'top_down' (needs θ≈π)."""
+    robot = ParsedRobot(
+        name="r",
+        links=[_link("base", 0.0), _link("j1_link", 0.0), _link("arm", 1.0)],
+        joints=[
+            _joint("j1", "base", "j1_link", joint_type="revolute",
+                   axis=[0, 1, 0], lower=0.0, upper=math.pi / 4),
+            _joint("j_ext", "j1_link", "arm", joint_type="fixed",
+                   xyz=[1.0, 0.0, 0.0]),
+        ],
+    )
+    report = ValidationReport()
+    run(robot, report, n_samples=1000,
+        target_orientation="top_down", tolerance_deg=15.0)
+    assert report.workspace.orientation_reachable is False
+
+
+def test_orientation_tolerance_stored():
+    report = ValidationReport()
+    run(_one_dof_arm(), report, n_samples=200,
+        target_orientation="side", tolerance_deg=30.0)
+    assert report.workspace.orientation_tolerance_deg == 30.0
+
+
+def test_orientation_not_populated_when_no_arm_chain():
+    robot = ParsedRobot(
+        name="turtlebot",
+        links=[_link("base"), _link("lw"), _link("rw")],
+        joints=[
+            _joint("j_lw", "base", "lw", joint_type="continuous"),
+            _joint("j_rw", "base", "rw", joint_type="continuous"),
+        ],
+    )
+    report = ValidationReport()
+    run(robot, report, n_samples=100, target_orientation="side")
+    assert report.workspace.orientation_reachable is None
+
+
+# ---------------------------------------------------------------------------
+# Real-pose COM stability
+# ---------------------------------------------------------------------------
+
+def test_real_pose_com_stable_when_shift_small():
+    """Z-arm robot: 2 kg arm, 8 kg base; at max-reach (θ=π/2) arm shifts to [1,0,0].
+    Zero-pose full-body COM at [0, 0, 0.2]; extended COM at [0.2, 0, 0].
+    XY shift = 0.2 m = 200 mm << 1000 mm margin → stable.
+    """
+    report = ValidationReport()
+    report.statics.full_body_com = [0.0, 0.0, 0.2]
+    report.stability.margin_mm = 1000.0
+    run(_z_arm_robot(arm_mass=2.0, base_mass=8.0), report, n_samples=2000,
+        task_name="pick", task_height_m=0.5)
+    assert report.workspace.task_com_stable_during_reach is True
+    assert report.workspace.task_com_shift_estimate_m is not None
+    assert report.workspace.task_com_shift_estimate_m < 0.5
+
+
+def test_real_pose_com_unstable_when_shift_large():
+    """Z-arm robot: 9 kg arm, 1 kg base; at max-reach arm shifts to [1,0,0].
+    Zero-pose COM at [0, 0, 0.9]; extended COM at [0.9, 0, 0].
+    XY shift = 0.9 m = 900 mm >> 10 mm margin → unstable.
+    """
+    report = ValidationReport()
+    report.statics.full_body_com = [0.0, 0.0, 0.9]
+    report.stability.margin_mm = 10.0
+    run(_z_arm_robot(arm_mass=9.0, base_mass=1.0), report, n_samples=2000,
+        task_name="pick", task_height_m=0.5)
+    assert report.workspace.task_com_stable_during_reach is False
+
+
+def test_real_pose_com_skipped_when_full_body_com_unavailable():
+    """Without full_body_com, real-pose stability cannot be computed."""
+    report = ValidationReport()
+    report.stability.margin_mm = 1000.0
+    # full_body_com is None (not set)
+    run(_z_arm_robot(), report, n_samples=500,
+        task_name="pick", task_height_m=0.5)
+    assert report.workspace.task_com_stable_during_reach is None
+    assert report.workspace.task_reason is not None

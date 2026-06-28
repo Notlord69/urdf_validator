@@ -6,6 +6,10 @@ ikpy
 [dev]
 pytest
 
+[full]
+xacro
+mujoco
+
 [mujoco]
 mujoco
 

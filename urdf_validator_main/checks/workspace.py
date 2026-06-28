@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -14,6 +14,11 @@ from urdf_validator_main.physics.arm_chain import (
     detect_arm_chains,
 )
 from urdf_validator_main.physics.chain_walker import walk
+from urdf_validator_main.physics.orientation import pose_satisfies
+from urdf_validator_main.physics.self_collision import (
+    build_arm_capsules,
+    check_pose_collisions,
+)
 from urdf_validator_main.physics.robot_classifier import detect_robot_type
 from urdf_validator_main.report.models import ValidationReport
 
@@ -23,6 +28,7 @@ from urdf_validator_main.report.models import ValidationReport
 _N_SAMPLES_DEFAULT = 30_000   # total_dof <= 14 (simple arms, cheap FK)
 _N_SAMPLES_LARGE   = 20_000   # total_dof  > 14 (dual-arm / deep chains)
 _RNG_SEED = 0
+_N_COLLISION_CHECK = 200      # subsample cap for self-collision pairwise checks
 
 
 def _arm_mass(arm: ArmChain, parsed: ParsedRobot) -> float:
@@ -44,6 +50,11 @@ def _shoulder_world(arm: ArmChain, frames) -> np.ndarray:
 
 
 def _sample(chain, active_mask: List[bool], n: int) -> tuple:
+    """Return (positions, rotations, angles_matrix).
+
+    angles_matrix shape is (n, n_active) — the sampled joint values for each
+    active DOF in the order they appear in active_mask.
+    """
     rng = np.random.default_rng(_RNG_SEED)
     n_links = len(chain.links)
     active_indices = [i for i, a in enumerate(active_mask) if a]
@@ -53,19 +64,26 @@ def _sample(chain, active_mask: List[bool], n: int) -> tuple:
     # scalar uniform() calls (the original hot path for large robots).
     lows  = np.fromiter((chain.links[i].bounds[0] for i in active_indices), float, n_active)
     highs = np.fromiter((chain.links[i].bounds[1] for i in active_indices), float, n_active)
-    all_angles = rng.uniform(lows, highs, (n, n_active)).tolist()
+    angles_matrix = rng.uniform(lows, highs, (n, n_active))
 
     angles = [0.0] * n_links
     positions = np.empty((n, 3))
     rotations = np.empty((n, 3, 3))
     for k in range(n):
-        row = all_angles[k]
+        row = angles_matrix[k]
         for col, idx in enumerate(active_indices):
-            angles[idx] = row[col]
+            angles[idx] = float(row[col])
         T = chain.forward_kinematics(angles)
         positions[k] = T[:3, 3]
         rotations[k] = T[:3, :3]
-    return positions, rotations
+    return positions, rotations, angles_matrix
+
+
+def _full_body_com(frames) -> Optional[np.ndarray]:
+    total_mass = sum(f.mass for f in frames.values())
+    if total_mass <= 0:
+        return None
+    return sum(f.mass * f.com_world for f in frames.values()) / total_mass
 
 
 def run(parsed: ParsedRobot, report: ValidationReport,
@@ -75,7 +93,9 @@ def run(parsed: ParsedRobot, report: ValidationReport,
         joint_angles=None,
         arm_root: Optional[str] = None,
         arm_tip: Optional[str] = None,
-        robot_type: Optional[str] = None) -> None:
+        robot_type: Optional[str] = None,
+        target_orientation=None,
+        tolerance_deg: float = 15.0) -> None:
     try:
         if arm_root is not None and arm_tip is not None:
             # --- User-declared chain path ---
@@ -151,10 +171,12 @@ def run(parsed: ParsedRobot, report: ValidationReport,
         per_vert: List[float] = []
         per_horiz: List[float] = []
         per_from_base: List[float] = []
+        per_orient_frac: List[float] = []
+        per_best_angles: List[Optional[Dict[str, float]]] = []
 
         for arm in arm_chains:
             ikpy_chain, active_mask = build_ikpy_chain(arm)
-            pos_local, rot_local = _sample(ikpy_chain, active_mask, actual_n)
+            pos_local, rot_local, angles_mat = _sample(ikpy_chain, active_mask, actual_n)
 
             T_root = frames[arm.root_link].T_world
             pos_world = (T_root[:3, :3] @ pos_local.T).T + T_root[:3, 3]
@@ -165,12 +187,32 @@ def run(parsed: ParsedRobot, report: ValidationReport,
                 float(np.max(np.linalg.norm(pos_world - shoulder, axis=1)))
             )
             per_vert.append(float(np.max(pos_world[:, 2])))
-            per_horiz.append(
-                float(np.max(np.linalg.norm(pos_world[:, :2], axis=1)))
-            )
-            per_from_base.append(
-                float(np.max(np.linalg.norm(pos_world, axis=1)))
-            )
+
+            horiz_norms = np.linalg.norm(pos_world[:, :2], axis=1)
+            per_horiz.append(float(np.max(horiz_norms)))
+            per_from_base.append(float(np.max(np.linalg.norm(pos_world, axis=1))))
+
+            # Orientation fraction: fraction of samples satisfying the target orientation.
+            if target_orientation is not None:
+                hits = sum(
+                    1 for R in rot_local
+                    if pose_satisfies(
+                        np.block([[R, np.zeros((3, 1))], [0, 0, 0, 1]]),
+                        target_orientation, tolerance_deg,
+                    )
+                )
+                per_orient_frac.append(hits / actual_n)
+            else:
+                per_orient_frac.append(0.0)
+
+            # Track joint angles for the sample with the highest horizontal reach.
+            active_indices = [i for i, a in enumerate(active_mask) if a]
+            best_sample_idx = int(np.argmax(horiz_norms))
+            best_row = angles_mat[best_sample_idx]
+            per_best_angles.append({
+                arm.joints[ikpy_idx - 1].name: float(best_row[col])
+                for col, ikpy_idx in enumerate(active_indices)
+            })
 
         report.workspace.max_reach = max(per_max_reach)
         report.workspace.vertical_reach = max(per_vert)
@@ -178,6 +220,76 @@ def run(parsed: ParsedRobot, report: ValidationReport,
         report.workspace.reach_from_base = max(per_from_base)
         report.workspace.reach_confidence = "estimated"
         report.workspace.status = "PASS"
+
+        # Self-collision: subsample the angle cloud to cap pairwise check cost.
+        # Each arm is checked independently; the worst result across arms is reported.
+        n_check = min(_N_COLLISION_CHECK, actual_n)
+        global_min_clearance = float("inf")
+        global_worst_pair: Optional[List[str]] = None
+        total_free = 0
+        total_checked = 0
+
+        for arm_idx, arm in enumerate(arm_chains):
+            ikpy_chain_sc, active_mask_sc = build_ikpy_chain(arm)
+            active_indices_sc = [i for i, a in enumerate(active_mask_sc) if a]
+
+            # Zero-pose baseline: exclude pairs that are already in contact at
+            # zero pose — these represent design-intrinsic capsule-radius overlap
+            # at compact wrist/elbow clusters, not motion-induced collision.
+            caps_zero = build_arm_capsules(arm, frames, parsed)
+            zero_excluded = {(a, b) for a, b, _ in check_pose_collisions(caps_zero)}
+
+            # Re-sample specifically for collision check (separate from reach sampling).
+            rng_sc = np.random.default_rng(_RNG_SEED + 1)
+            lows_sc  = np.fromiter(
+                (ikpy_chain_sc.links[i].bounds[0] for i in active_indices_sc),
+                float, len(active_indices_sc),
+            )
+            highs_sc = np.fromiter(
+                (ikpy_chain_sc.links[i].bounds[1] for i in active_indices_sc),
+                float, len(active_indices_sc),
+            )
+            sc_angles_mat = rng_sc.uniform(lows_sc, highs_sc,
+                                           (n_check, len(active_indices_sc)))
+
+            for k in range(n_check):
+                named = {
+                    arm.joints[ikpy_idx - 1].name: float(sc_angles_mat[k, col])
+                    for col, ikpy_idx in enumerate(active_indices_sc)
+                }
+                frames_k = walk(parsed, joint_angles=named)
+                caps = build_arm_capsules(arm, frames_k, parsed)
+                all_hits = check_pose_collisions(caps)
+                # Filter to only NEW collisions not present at zero pose.
+                motion_hits = [(a, b, cl) for a, b, cl in all_hits
+                               if (a, b) not in zero_excluded]
+
+                total_checked += 1
+                if not motion_hits:
+                    total_free += 1
+                else:
+                    worst = min(motion_hits, key=lambda t: t[2])
+                    if worst[2] < global_min_clearance:
+                        global_min_clearance = worst[2]
+                        global_worst_pair = [worst[0], worst[1]]
+
+        if total_checked > 0:
+            report.workspace.self_collision_free_fraction = total_free / total_checked
+            if global_worst_pair is not None:
+                report.workspace.self_collision_min_clearance_mm = global_min_clearance * 1000.0
+                report.workspace.self_collision_worst_pair = global_worst_pair
+            else:
+                report.workspace.self_collision_min_clearance_mm = (
+                    (float("inf") if global_min_clearance == float("inf") else global_min_clearance)
+                    * 1000.0
+                )
+
+        # Orientation scoring: use the arm with the highest orientation-satisfying fraction.
+        if target_orientation is not None:
+            best_orient_frac = max(per_orient_frac)
+            report.workspace.orientation_reachable = best_orient_frac >= 0.05
+            report.workspace.orientation_confidence = "estimated"
+            report.workspace.orientation_tolerance_deg = float(tolerance_deg)
 
         if task_name is not None:
             report.workspace.task = task_name
@@ -188,27 +300,30 @@ def run(parsed: ParsedRobot, report: ValidationReport,
                 vr = report.workspace.vertical_reach or 0.0
                 report.workspace.task_height_reachable = vr >= task_height_m
 
-            # COM-during-reach (Option B): midpoint-of-arm approximation.
-            # Scope: zero-pose support polygon only; single-arm worst case;
-            # arm COM approximated as halfway between shoulder and EE.
-            total_mass = report.statics.total_mass
+            # COM-during-reach: real-pose computation.
+            # Find the arm with max horizontal reach, compute full-body COM at that
+            # sampled configuration via chain_walker, compare shift to zero-pose COM.
             margin_mm = report.stability.margin_mm
-            horiz = report.workspace.horizontal_reach
+            zero_com = report.statics.full_body_com
 
-            if total_mass and total_mass > 0.0 and margin_mm is not None:
-                # For multi-arm robots, picks the first arm with max horizontal reach (detection order),
-                # not necessarily the arm whose shift is worst-case for the given support polygon.
+            if margin_mm is not None and zero_com is not None:
                 best_idx = per_horiz.index(max(per_horiz))
-                arm_mass_val = _arm_mass(arm_chains[best_idx], parsed)
-                shift_m = (arm_mass_val / total_mass) * (horiz / 2.0)
-                report.workspace.task_com_shift_estimate_m = float(shift_m)
-                report.workspace.task_com_stable_during_reach = (shift_m * 1000.0) < margin_mm
+                best_named_angles = per_best_angles[best_idx]
+                frames_ext = walk(parsed, joint_angles=best_named_angles)
+                com_ext = _full_body_com(frames_ext)
+                if com_ext is not None:
+                    z0 = np.array(zero_com[:2], dtype=float)
+                    shift_m = float(np.linalg.norm(com_ext[:2] - z0))
+                    report.workspace.task_com_shift_estimate_m = shift_m
+                    report.workspace.task_com_stable_during_reach = (shift_m * 1000.0) < margin_mm
+                else:
+                    report.workspace.task_reason = "full-body COM unavailable at extended pose"
             else:
                 reasons = []
-                if not total_mass:
-                    reasons.append("total mass unavailable")
                 if margin_mm is None:
                     reasons.append("no wheeled support polygon")
+                if zero_com is None:
+                    reasons.append("full-body COM unavailable")
                 report.workspace.task_reason = "; ".join(reasons) or "stability data unavailable"
 
     except Exception:

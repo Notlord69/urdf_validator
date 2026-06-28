@@ -10,7 +10,7 @@ _A Physics-Aware, AI-Callable URDF Validation Tool for the ROS 2 Community_
 | **Date**     | May 2026 (original) / June 2026 (revision)   |
 | **Timeline** | Original 6 Months (Month 1-6, COMPLETE through v0.5) + New 6-Month Extension (Month 7-12) |
 | **License**  | MIT - Open Source                            |
-| **Status**   | v0.5 Complete — Extension Phase Planning      |
+| **Status**   | v1.0.0 Complete — Public Release (2026-06-28) |
 
 > **Revision note (June 2026):** Sections 3.2 through 3.6 describe functionality already implemented and shipped through v0.5 (see `PRD_status.md` for line-by-line implementation status). These sections are **not altered** by this revision. This revision adds §1.4 (Expanded Vision), §3.7, and §3.8 as new functional scope, restructures §6 (Release Plan) to push documentation/community-release work back and insert a new Month 7-12 extension plan, and reorganizes §8 (Future Plans) to reflect what is now in-scope for the next six months versus what remains genuinely deferred.
 
@@ -439,13 +439,13 @@ The acceptance standard for community trust is correct, non-crashing output on s
 
 | **Month**    | **Phase & Focus**                                                        | Exit Goal                                                                                                                                                          |
 | ------------ | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Month 6**  | **User-Declared Robot Info (§3.7.1)**                                    | `--robot-type`, `--contact-links`, `--arm-root`/`--arm-tip` flags implemented; heuristic-vs-declared mismatch warnings working; existing heuristics unchanged and still run as cross-check |
-| **Month 7**  | **Capability-Profile Architecture (§3.7.2) + Payload-Augmented Statics (§3.7.3)** | Capability-profile table covers arm_only/wheeled/legged/aerial/ground_vehicle categories with correct N/A-vs-UNKNOWN reporting; `--payload-mass` flag implemented and validated against existing gravity torque tests on Fetch, PR2, Franka Panda |
-| **Month 8**  | **Orientation-Aware Reachability**                                       | Workspace sampling (§3.5.1) extended to report reachable poses (position + orientation), not positions alone; validated against at least 2 arm-bearing reference robots |
-| **Month 9**  | **Real-Pose Stability During Reach + Self-Collision/Clearance Checks**   | Midpoint-of-arm approximation (§3.5.3) replaced with real sampled extended pose for COM-during-reach check; basic self-collision/target-clearance geometric check implemented for arm-bearing robots |
-| **Month 10** | **Structured Task-Query Interface (§3.8)**                              | `api/task_schema.py` and `api/task_runner.py` implemented; single task query and scenario sweep both functional; schema documented (mirrors the existing `docs/json_schema.md` pattern) |
-| **Month 11** | **Hardening on Extended Scope**                                          | All Month 6-10 additions validated against all 6 original reference robots plus at least 2 newly-recognized capability-profile categories (e.g. a wheeled-no-arm vehicle, an aerial platform recognized-but-N/A); no crashes; honest N/A reporting confirmed for unimplemented categories |
-| **Month 12** | **Polish + Docs + Community Release** *(original Month 6 scope, relocated)* | First 50 real users - posted to ROS Discourse, Reddit r/robotics. README and docs describe the full extended tool: user-declared robot info, capability-profile generalization, and the AI-callable task-query interface - not just the original six-robot proof of concept. |
+| **Month 6**  | **User-Declared Robot Info (§3.7.1)**                                    | `--robot-type`, `--contact-links`, `--arm-root`/`--arm-tip` flags implemented; heuristic-vs-declared mismatch warnings working; existing heuristics unchanged and still run as cross-check | **COMPLETE** |
+| **Month 7**  | **Capability-Profile Architecture (§3.7.2) + Payload-Augmented Statics (§3.7.3)** | Capability-profile table covers arm_only/wheeled/legged/aerial/ground_vehicle categories with correct N/A-vs-UNKNOWN reporting; `--payload-mass` flag implemented and validated against existing gravity torque tests on Fetch, PR2, Franka Panda | **COMPLETE** |
+| **Month 8**  | **Orientation-Aware Reachability**                                       | Workspace sampling (§3.5.1) extended to report reachable poses (position + orientation), not positions alone; validated against at least 2 arm-bearing reference robots | **COMPLETE** |
+| **Month 9**  | **Real-Pose Stability During Reach + Self-Collision/Clearance Checks**   | Midpoint-of-arm approximation (§3.5.3) replaced with real sampled extended pose for COM-during-reach check; basic self-collision/target-clearance geometric check implemented for arm-bearing robots | **COMPLETE** |
+| **Month 10** | **Structured Task-Query Interface (§3.8)**                              | `api/task_schema.py` and `api/task_runner.py` implemented; single task query and scenario sweep both functional; schema documented (mirrors the existing `docs/json_schema.md` pattern) | **COMPLETE** |
+| **Month 11** | **Hardening on Extended Scope**                                          | All Month 6-10 additions validated against all 6 original reference robots plus at least 2 newly-recognized capability-profile categories (e.g. a wheeled-no-arm vehicle, an aerial platform recognized-but-N/A); no crashes; honest N/A reporting confirmed for unimplemented categories | **COMPLETE** |
+| **Month 12** | **Polish + Docs + Community Release** *(original Month 6 scope, relocated)* | First 50 real users - posted to ROS Discourse, Reddit r/robotics. README and docs describe the full extended tool: user-declared robot info, capability-profile generalization, and the AI-callable task-query interface - not just the original six-robot proof of concept. | **COMPLETE** |
 
 Version milestones (revised):
 
@@ -454,13 +454,13 @@ Version milestones (revised):
 - v0.3 (Month 3): stability analysis — **COMPLETE**
 - v0.4 (Month 4): full pipeline + JSON export — **COMPLETE**
 - v0.5 (Month 5): hardening - community pre-release — **COMPLETE**
-- v0.6 (Month 6): user-declared robot info overrides
-- v0.7 (Month 7): capability profiles + payload-augmented statics
-- v0.8 (Month 8): orientation-aware reachability
-- v0.9 (Month 9): real-pose stability during reach + self-collision/clearance checks
-- v0.10 (Month 10): structured task-query interface for AI/programmatic callers
-- v0.11 (Month 11): hardening on extended scope
-- v1.0 (Month 12): public release - ROS Discourse announcement *(relocated from original Month 6)*
+- v0.6 (Month 6): user-declared robot info overrides — **COMPLETE**
+- v0.7 (Month 7): capability profiles + payload-augmented statics — **COMPLETE**
+- v0.8 (Month 8): orientation-aware reachability — **COMPLETE**
+- v0.9 (Month 9): real-pose stability during reach + self-collision/clearance checks — **COMPLETE**
+- v0.10 (Month 10): structured task-query interface for AI/programmatic callers — **COMPLETE**
+- v0.11 (Month 11): hardening on extended scope — **COMPLETE**
+- v1.0.0 (Month 12): public release - ROS Discourse announcement *(relocated from original Month 6)* — **COMPLETE**
 
 # **7\. Open Questions**
 
@@ -471,7 +471,7 @@ Version milestones (revised):
 | **3** | Should mesh-based inertia estimation be in v1?                        | Mesh inertia computation (via trimesh) adds a heavy dependency. Current plan: fallback to sphere bounding-box estimate with a 'guessed' confidence label. Full mesh integration deferred to v1.1. |
 | **4** | What is the correct tolerance for torque verification against MuJoCo? | 10% is the current working assumption. Needs empirical validation on fetch_robot in Month 2. May need tightening or loosening based on results.                                                   |
 | **5** | Should the tool support SDF as an input format?                       | Out of scope for v1. SDF is Gazebo-specific. URDF is the universal ROS format. SDF support deferred to Future Plans.                                                                              |
-| **6** | GitHub Actions integration documentation - scope for v1?              | A YAML workflow example for CI integration is desirable for the startup persona. Target: include in docs/ by Month 12 (relocated from original Month 6 per §6 revision), not a blocker for v1.0.    |
+| **6** | GitHub Actions integration documentation - scope for v1?              | **RESOLVED.** `.github/workflows/urdf_validation.yml` drop-in workflow delivered in v1.0. Covers single-URDF, multi-URDF loop, allow-WARN/block-FAIL, and legged-robot `--contact-links` variants. |
 | **7** | Should `--contact-links` (§3.7.1) accept raw XY coordinates in addition to link names? | Deferred. Link-name-only covers the realistic case (mecanum/omni/tracked robots all have some link to point at). Coordinate input adds a parallel code path for a narrower edge case (a contact patch not tied to any modeled link). Revisit if real user reports surface the need. |
 
 # **8\. Future Plans**
@@ -521,5 +521,47 @@ Version milestones (revised):
 - Builds on v2.0: once real telemetry exists, store (robot, joint, pose, predicted_value, observed_value) records and compute a per-robot-per-joint correction factor (observed/predicted) applied *after* the existing deterministic physics calculation (§3.3.3) - the calculation itself is never altered or replaced.
 - Introduces a new `calibrated` confidence tier (extending §3.7.4), reported alongside the number of real trials the correction is based on, so the report remains honest about how much real data backs any given correction.
 - A learned (non-LLM) regression model predicting the correction factor itself - as a function of pose, load, and joint/actuator type, generalizing across robots sharing hardware - is the only anticipated machine-learning component in this entire roadmap, and is explicitly gated on having accumulated enough cross-robot telemetry for the pattern to be meaningful rather than fitting noise. This cannot start before community adoption (§6, Month 12) produces users willing to submit real telemetry.
+
+# **9\. Repository & Licensing Strategy (New)**
+
+> **Revision note (June 2026):** This section formalizes a decision made during v1.0 release planning, ahead of the public GitHub publish and PyPI announcement (§6, Month 12). It does not change any functional requirement in §3 - it governs *where code lives* and *under what terms*, not what the code does. Added so the repository split is decided once, in writing, rather than improvised at release time or revisited ad hoc as monetization plans evolve.
+
+## **9.1 Core Principle**
+
+For a `pip install`-distributed Python CLI tool, source code is never actually secret from anyone who installs it - Python ships as readable `.py` files inside the wheel, not as a compiled binary. Keeping the GitHub repository private therefore provides no real confidentiality benefit for the CLI itself; it only hides the code from people who haven't installed it, while simultaneously forfeiting the community trust, contribution, and discoverability benefits a public repo provides. Real, durable protection for future commercial work comes from three things that *cannot* be copied by forking a GitHub repo: (1) server-side code that never leaves Anthropic-equivalent infrastructure - i.e. the operator's own servers, (2) accumulated proprietary data (telemetry), and (3) license terms governing redistribution. The repository split below is designed around this principle: everything that is pip-installed and runs on the user's machine is open; everything that is hosted, data-driven, or service-shaped is closed.
+
+## **9.2 Repository Split**
+
+**Open repository - `urdf_validator` (public, MIT license)**
+
+Contains the entire scope of this PRD through v1.0 (§3.1-3.8, all of v0.1-v0.11), unchanged by this section:
+
+- Parser & xacro handling (§3.2)
+- Statics, stability, workspace phases (§3.3-3.5)
+- Report generation, JSON export, terminal formatter (§3.6)
+- Capability-profile model and user-declared overrides (§3.7)
+- Structured task-query schema **and** runner (§3.8) - `api/task_schema.py` and `api/task_runner.py` ship in the open repo. Per §3.8.4, this layer is orchestration over existing deterministic phases, not a new physics capability or proprietary algorithm; it is also the interface that makes the tool AI-agent-callable (§1.4.2), which is a distribution goal, not a revenue feature, and must not be gated.
+
+This repository is the project's distribution and credibility engine. A validator whose physics claims cannot be inspected is a harder sell to a community that already has working physics intuition; openness here is what earns the trust §1.3 and §5.1 depend on.
+
+**Closed repository(ies) - private, separate from the OSS repo**
+
+Reserved for infrastructure and capabilities that are service-shaped (require the operator's own servers or accumulated data to function at all) rather than tool-shaped (run entirely on the user's machine after `pip install`). None of this exists yet in the current PRD scope (v1.0 and earlier); this section exists to pre-decide the boundary for the roadmap items in §8 that are service-shaped:
+
+| §8 Roadmap Item | Open or Closed | Rationale |
+|---|---|---|
+| v1.5 - Agent Protocol Exposure (MCP) | **Split.** A thin open-source MCP *adapter* around the existing CLI/task-query interface stays in the open repo - it is a packaging layer (§8, v1.5), no new logic. A *hosted, multi-tenant* MCP endpoint (auth, rate limiting, billing, uptime) is closed. | The adapter has no secret logic to protect. The hosting/ops/billing layer is itself the product. |
+| v2.0 - Sim-to-Real Co-Pilot Mode | **Closed** | Depends on ingested real robot telemetry the operator collects; explicitly named in §8 as "the long-term commercial differentiation path." |
+| v2.1 - Telemetry-Calibrated Confidence | **Closed** | The correction model and `calibrated` confidence tier are worthless without the accumulated cross-robot telemetry dataset (§8: "this cannot start before community adoption ... produces users willing to submit real telemetry"). The data, not the arithmetic, is the moat. |
+| Any future hosted dashboard, fleet-wide regression view, or CI SaaS product | **Closed** | New commercial surface with no free-tier equivalent being withheld - nothing is removed from the open tool to create this. |
+
+A private service repository depends on the public `urdf_validator` package as an ordinary pip dependency (e.g. `pip install urdf-validator` inside the private service) - it does not fork, vendor, or duplicate the open core. This keeps the boundary clean: nothing functional is held back from the free CLI to manufacture a paid tier; the paid layer is strictly new infrastructure (hosting, scale, proprietary data, billing) that has no open equivalent at all.
+
+## **9.3 Licensing Notes**
+
+- The open repository remains MIT (§4, License NFR) for all code through v1.0. MIT is irrevocable for any code already released under it - this decision is only live for code not yet shipped.
+- Should new substantial functionality be added to the *open* repository post-v1.0 that the project wants to protect from being re-hosted commercially by a third party without reciprocity, a source-available license (e.g. Business Source License) may be considered for that new code specifically, converting to a fully open license after a fixed time window. This is a deliberate exception, not the default - the default for anything in the open repository remains MIT.
+- Repository visibility (public/private) and license permissiveness (MIT/BSL/proprietary) are independent decisions. This section's split is about visibility and code location; license choice within the open repo is governed by §4 and not altered here.
+- Trademark/branding protection (project name, logo) is tracked separately from code licensing and is out of scope for this PRD.
 
 _End of Document_

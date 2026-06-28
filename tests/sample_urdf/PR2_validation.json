@@ -2,7 +2,8 @@
   "urdf_path": "tests/sample_urdf/PR2.urdf",
   "robot_name": "pr2",
   "robot_type": "wheeled",
-  "timestamp": "2026-06-16T07:30:06.727090+00:00",
+  "robot_type_confidence": "estimated",
+  "timestamp": "2026-06-28T08:11:01.003971+00:00",
   "validator_version": "0.1.0",
   "schema": {
     "status": "WARN",
@@ -2091,7 +2092,10 @@
     "heaviest_link_pct": 43.65297453739308,
     "mass_split_warning": null,
     "weakest_joint_name": "l_shoulder_lift_joint",
-    "payload_capacity_kg": null
+    "payload_capacity_kg": null,
+    "payload_mass": null,
+    "payload_link": null,
+    "reason": null
   },
   "stability": {
     "stable": true,
@@ -2103,7 +2107,8 @@
     "tipping_angle_deg": 25.225789928526076,
     "status": "PASS",
     "reason": null,
-    "deep_validated": false
+    "deep_validated": false,
+    "contact_confidence": "estimated"
   },
   "workspace": {
     "max_reach": 1.887317371179388,
@@ -2118,7 +2123,16 @@
     "task_height_reachable": null,
     "task_com_stable_during_reach": null,
     "task_com_shift_estimate_m": null,
-    "task_reason": null
+    "task_reason": null,
+    "orientation_reachable": null,
+    "orientation_confidence": "missing",
+    "orientation_tolerance_deg": null,
+    "self_collision_free_fraction": 0.01,
+    "self_collision_min_clearance_mm": -98.81812822411868,
+    "self_collision_worst_pair": [
+      "l_gripper_r_finger_link",
+      "l_gripper_l_finger_tip_frame"
+    ]
   },
   "overall_status": "FAIL",
   "critical_issues": [],

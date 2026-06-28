@@ -3,7 +3,7 @@
   "robot_name": "nan_bot",
   "robot_type": "unknown",
   "robot_type_confidence": "estimated",
-  "timestamp": "2026-06-20T08:37:18.488832+00:00",
+  "timestamp": "2026-06-28T09:13:51.709039+00:00",
   "validator_version": "0.1.0",
   "schema": {
     "status": "WARN",
@@ -104,7 +104,10 @@
     "task_reason": null,
     "orientation_reachable": null,
     "orientation_confidence": "missing",
-    "orientation_tolerance_deg": null
+    "orientation_tolerance_deg": null,
+    "self_collision_free_fraction": 1.0,
+    "self_collision_min_clearance_mm": Infinity,
+    "self_collision_worst_pair": null
   },
   "overall_status": "WARN",
   "critical_issues": [],

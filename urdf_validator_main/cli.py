@@ -1,4 +1,5 @@
 import argparse
+import importlib.metadata
 import os
 import sys
 from datetime import datetime, timezone
@@ -334,12 +335,18 @@ def main() -> None:
                 )
                 sys.exit(2)
 
+        try:
+            _version = importlib.metadata.version("urdf-validator")
+        except importlib.metadata.PackageNotFoundError:
+            _version = "unknown"
+
         report = ValidationReport(
             urdf_path=original_path,
             robot_name=result.name,
             robot_type=effective_type,
             robot_type_confidence=robot_type_confidence,
             timestamp=datetime.now(timezone.utc).isoformat(),
+            validator_version=_version,
         )
 
         # Add robot-type mismatch warning when declared and heuristic disagree

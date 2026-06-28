@@ -1,0 +1,109 @@
+<?xml version="1.0"?>
+<!-- Minimal quadrotor drone with no manipulator arm and no ground-contact wheels.
+     Intended to exercise the aerial capability profile:
+       stability → N/A (ground_contact=False)
+       workspace → N/A (has_manipulator=False)
+     Body at world origin; four rotors at z=0, arranged in ±X, ±Y at 0.25m radius.
+-->
+<robot name="aerial_drone">
+
+  <!-- === body === -->
+  <link name="body">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1.5"/>
+      <!-- box 0.3 × 0.3 × 0.1 m -->
+      <inertia ixx="0.013" ixy="0" ixz="0" iyy="0.013" iyz="0" izz="0.023"/>
+    </inertial>
+    <visual>
+      <geometry><box size="0.3 0.3 0.1"/></geometry>
+    </visual>
+    <collision>
+      <geometry><box size="0.3 0.3 0.1"/></geometry>
+    </collision>
+  </link>
+
+  <!-- === rotors (fixed; named 'rotor' — no 'wheel' keyword for heuristic) === -->
+  <link name="rotor_0">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <!-- thin cylinder r=0.15, l=0.02 m -->
+      <inertia ixx="0.00057" ixy="0" ixz="0" iyy="0.00057" iyz="0" izz="0.00113"/>
+    </inertial>
+    <visual>
+      <geometry><cylinder radius="0.15" length="0.02"/></geometry>
+    </visual>
+    <collision>
+      <geometry><cylinder radius="0.15" length="0.02"/></geometry>
+    </collision>
+  </link>
+
+  <link name="rotor_1">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.00057" ixy="0" ixz="0" iyy="0.00057" iyz="0" izz="0.00113"/>
+    </inertial>
+    <visual>
+      <geometry><cylinder radius="0.15" length="0.02"/></geometry>
+    </visual>
+    <collision>
+      <geometry><cylinder radius="0.15" length="0.02"/></geometry>
+    </collision>
+  </link>
+
+  <link name="rotor_2">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.00057" ixy="0" ixz="0" iyy="0.00057" iyz="0" izz="0.00113"/>
+    </inertial>
+    <visual>
+      <geometry><cylinder radius="0.15" length="0.02"/></geometry>
+    </visual>
+    <collision>
+      <geometry><cylinder radius="0.15" length="0.02"/></geometry>
+    </collision>
+  </link>
+
+  <link name="rotor_3">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.00057" ixy="0" ixz="0" iyy="0.00057" iyz="0" izz="0.00113"/>
+    </inertial>
+    <visual>
+      <geometry><cylinder radius="0.15" length="0.02"/></geometry>
+    </visual>
+    <collision>
+      <geometry><cylinder radius="0.15" length="0.02"/></geometry>
+    </collision>
+  </link>
+
+  <!-- joints: body → rotor at each arm (fixed; rotors lie in XY plane at body level) -->
+  <joint name="j_rotor_0" type="fixed">
+    <parent link="body"/>
+    <child link="rotor_0"/>
+    <origin xyz=" 0.25  0.0  0.0" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="j_rotor_1" type="fixed">
+    <parent link="body"/>
+    <child link="rotor_1"/>
+    <origin xyz="-0.25  0.0  0.0" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="j_rotor_2" type="fixed">
+    <parent link="body"/>
+    <child link="rotor_2"/>
+    <origin xyz=" 0.0  0.25  0.0" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="j_rotor_3" type="fixed">
+    <parent link="body"/>
+    <child link="rotor_3"/>
+    <origin xyz=" 0.0 -0.25  0.0" rpy="0 0 0"/>
+  </joint>
+
+</robot>

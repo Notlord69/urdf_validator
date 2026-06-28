@@ -3,7 +3,7 @@
   "robot_name": "mesh_bot",
   "robot_type": "unknown",
   "robot_type_confidence": "estimated",
-  "timestamp": "2026-06-20T08:37:18.469635+00:00",
+  "timestamp": "2026-06-28T09:13:51.705282+00:00",
   "validator_version": "0.1.0",
   "schema": {
     "status": "INFO",
@@ -70,7 +70,10 @@
     "task_reason": null,
     "orientation_reachable": null,
     "orientation_confidence": "missing",
-    "orientation_tolerance_deg": null
+    "orientation_tolerance_deg": null,
+    "self_collision_free_fraction": null,
+    "self_collision_min_clearance_mm": null,
+    "self_collision_worst_pair": null
   },
   "overall_status": "PASS",
   "critical_issues": [],

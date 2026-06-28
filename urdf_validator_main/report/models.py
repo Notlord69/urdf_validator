@@ -81,6 +81,9 @@ class WorkspaceReport:
     orientation_reachable: Optional[bool] = None
     orientation_confidence: Confidence = "missing"
     orientation_tolerance_deg: Optional[float] = None
+    self_collision_free_fraction: Optional[float] = None
+    self_collision_min_clearance_mm: Optional[float] = None
+    self_collision_worst_pair: Optional[List[str]] = None
 
 
 @dataclass
@@ -98,7 +101,7 @@ class ValidationReport:
     robot_type: str = "unknown"
     robot_type_confidence: Confidence = "estimated"
     timestamp: str = ""
-    validator_version: str = "0.1.0"
+    validator_version: str = "1.0.0"
     schema: SchemaReport = field(default_factory=SchemaReport)
     links: List[LinkPhysicsReport] = field(default_factory=list)
     statics: StaticsReport = field(default_factory=StaticsReport)

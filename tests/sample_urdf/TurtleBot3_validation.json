@@ -1,8 +1,9 @@
 {
-  "urdf_path": "tests/sample_urdf/TurtleBot3.urdf",
+  "urdf_path": "/home/notlord/ros2_ws/urdf_validator/tests/sample_urdf/TurtleBot3.urdf",
   "robot_name": "turtlebot3_burger",
   "robot_type": "wheeled",
-  "timestamp": "2026-06-16T07:30:00.406475+00:00",
+  "robot_type_confidence": "estimated",
+  "timestamp": "2026-06-28T08:59:05.401887+00:00",
   "validator_version": "0.1.0",
   "schema": {
     "status": "INFO",
@@ -169,7 +170,10 @@
     "heaviest_link_pct": 82.43065826368169,
     "mass_split_warning": null,
     "weakest_joint_name": null,
-    "payload_capacity_kg": null
+    "payload_capacity_kg": null,
+    "payload_mass": null,
+    "payload_link": null,
+    "reason": null
   },
   "stability": {
     "stable": true,
@@ -181,7 +185,8 @@
     "tipping_angle_deg": 27.403285279468477,
     "status": "PASS",
     "reason": null,
-    "deep_validated": false
+    "deep_validated": false,
+    "contact_confidence": "estimated"
   },
   "workspace": {
     "max_reach": null,
@@ -196,7 +201,13 @@
     "task_height_reachable": null,
     "task_com_stable_during_reach": null,
     "task_com_shift_estimate_m": null,
-    "task_reason": null
+    "task_reason": null,
+    "orientation_reachable": null,
+    "orientation_confidence": "missing",
+    "orientation_tolerance_deg": null,
+    "self_collision_free_fraction": null,
+    "self_collision_min_clearance_mm": null,
+    "self_collision_worst_pair": null
   },
   "overall_status": "PASS",
   "critical_issues": [],

@@ -1,0 +1,117 @@
+<?xml version="1.0"?>
+<!-- Minimal four-wheeled ground vehicle with no manipulator arm.
+     Intended to exercise the ground_vehicle capability profile:
+       stability runs (wheeled locomotion)  → PASS/FAIL
+       workspace    → N/A (has_manipulator=False)
+     Chassis at world origin; wheels at z=-0.15 (touching z=0 ground plane).
+-->
+<robot name="ground_vehicle">
+
+  <!-- === chassis === -->
+  <link name="chassis">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="100.0"/>
+      <!-- box 1.0 × 0.6 × 0.3 m -->
+      <inertia ixx="3.75" ixy="0" ixz="0" iyy="9.08" iyz="0" izz="11.33"/>
+    </inertial>
+    <visual>
+      <geometry><box size="1.0 0.6 0.3"/></geometry>
+    </visual>
+    <collision>
+      <geometry><box size="1.0 0.6 0.3"/></geometry>
+    </collision>
+  </link>
+
+  <!-- === wheels (continuous; named with 'wheel' for contact heuristic) === -->
+  <link name="wheel_fl">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="5.0"/>
+      <!-- cylinder r=0.15, l=0.1 m -->
+      <inertia ixx="0.032" ixy="0" ixz="0" iyy="0.032" iyz="0" izz="0.056"/>
+    </inertial>
+    <visual>
+      <geometry><cylinder radius="0.15" length="0.1"/></geometry>
+    </visual>
+    <collision>
+      <geometry><cylinder radius="0.15" length="0.1"/></geometry>
+    </collision>
+  </link>
+
+  <link name="wheel_fr">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="5.0"/>
+      <inertia ixx="0.032" ixy="0" ixz="0" iyy="0.032" iyz="0" izz="0.056"/>
+    </inertial>
+    <visual>
+      <geometry><cylinder radius="0.15" length="0.1"/></geometry>
+    </visual>
+    <collision>
+      <geometry><cylinder radius="0.15" length="0.1"/></geometry>
+    </collision>
+  </link>
+
+  <link name="wheel_rl">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="5.0"/>
+      <inertia ixx="0.032" ixy="0" ixz="0" iyy="0.032" iyz="0" izz="0.056"/>
+    </inertial>
+    <visual>
+      <geometry><cylinder radius="0.15" length="0.1"/></geometry>
+    </visual>
+    <collision>
+      <geometry><cylinder radius="0.15" length="0.1"/></geometry>
+    </collision>
+  </link>
+
+  <link name="wheel_rr">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="5.0"/>
+      <inertia ixx="0.032" ixy="0" ixz="0" iyy="0.032" iyz="0" izz="0.056"/>
+    </inertial>
+    <visual>
+      <geometry><cylinder radius="0.15" length="0.1"/></geometry>
+    </visual>
+    <collision>
+      <geometry><cylinder radius="0.15" length="0.1"/></geometry>
+    </collision>
+  </link>
+
+  <!-- joints: chassis → wheel at each corner (wheels at z=−0.15 below chassis) -->
+  <joint name="j_wheel_fl" type="continuous">
+    <parent link="chassis"/>
+    <child link="wheel_fl"/>
+    <origin xyz=" 0.4  0.3 -0.15" rpy="1.5708 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" velocity="5"/>
+  </joint>
+
+  <joint name="j_wheel_fr" type="continuous">
+    <parent link="chassis"/>
+    <child link="wheel_fr"/>
+    <origin xyz=" 0.4 -0.3 -0.15" rpy="1.5708 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" velocity="5"/>
+  </joint>
+
+  <joint name="j_wheel_rl" type="continuous">
+    <parent link="chassis"/>
+    <child link="wheel_rl"/>
+    <origin xyz="-0.4  0.3 -0.15" rpy="1.5708 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" velocity="5"/>
+  </joint>
+
+  <joint name="j_wheel_rr" type="continuous">
+    <parent link="chassis"/>
+    <child link="wheel_rr"/>
+    <origin xyz="-0.4 -0.3 -0.15" rpy="1.5708 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" velocity="5"/>
+  </joint>
+
+</robot>
