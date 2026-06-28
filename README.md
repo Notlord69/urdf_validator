@@ -325,7 +325,7 @@ The tool uses a built-in profile table to decide which checks apply to each robo
 | `wheeled` | Runs (wheel-contact heuristic) | Runs if arm chain detected |
 | `ground_vehicle` | Runs (wheel-contact heuristic) | N/A — ground vehicles have no manipulator |
 | `arm_only` | N/A — fixed-base arm has no ground contact | Runs |
-| `legged` / `quadruped` | UNKNOWN — foot contacts must be declared via `--contact-links` | Runs if arm chain detected |
+| `legged` / `quadruped` | UNKNOWN — foot contacts must be declared via `--contact-links` | N/A — legged robots have no manipulator |
 | `humanoid` | UNKNOWN — foot-contact algorithm not yet implemented | Runs if arm chain detected |
 | `aerial` | N/A — airborne robot has no ground contact | N/A — aerial vehicles have no manipulator |
 | `unknown` | UNKNOWN — cannot determine contact geometry | Runs |
