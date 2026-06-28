@@ -133,11 +133,11 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         "--robot-type",
-        choices=["wheeled", "legged", "humanoid", "arm_only", "aerial", "unknown"],
+        choices=["wheeled", "legged", "humanoid", "arm_only", "aerial", "ground_vehicle", "unknown"],
         default=None,
         metavar="TYPE",
         dest="robot_type",
-        help="Declare robot category (wheeled|legged|humanoid|arm_only|aerial|unknown); "
+        help="Declare robot category (wheeled|legged|humanoid|arm_only|aerial|ground_vehicle|unknown); "
              "heuristic still runs as cross-check",
     )
     parser.add_argument(
@@ -383,3 +383,7 @@ def main() -> None:
                 os.unlink(_temp_urdf)
             except OSError:
                 pass
+
+
+if __name__ == "__main__":
+    main()
