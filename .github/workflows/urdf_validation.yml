@@ -1,0 +1,72 @@
+# Drop-in GitHub Actions workflow for urdf_validator.
+# Copy this file to your repository at .github/workflows/urdf_validation.yml.
+# Validates all .urdf and .xacro files on every push and pull request that
+# touches robot description files.
+
+name: URDF Validation
+
+on:
+  push:
+    paths:
+      - '**.urdf'
+      - '**.xacro'
+  pull_request:
+    paths:
+      - '**.urdf'
+      - '**.xacro'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install urdf-validator
+        run: pip install "urdf-validator[xacro]"
+
+      # Validate a single known robot description.
+      # Replace the path below with your URDF location.
+      - name: Validate robot URDF
+        run: urdf_validate robot/my_robot.urdf --output-dir /tmp/reports
+
+      # Upload the JSON report as a CI artefact regardless of pass/fail.
+      - name: Upload validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: urdf-validation-report
+          path: /tmp/reports/*.json
+
+# ── Multi-URDF variant ────────────────────────────────────────────────────────
+# To validate every .urdf file in the repository, replace the
+# "Validate robot URDF" step above with:
+#
+#     - name: Validate all URDFs
+#       run: |
+#         find . -name '*.urdf' | while read f; do
+#           echo "=== $f ==="
+#           urdf_validate "$f" || exit 1
+#         done
+#
+# Exit code 1 (WARN) causes the job to fail. To let warnings pass but
+# block on failures, use:
+#
+#     - name: Validate (block on FAIL only)
+#       run: |
+#         urdf_validate robot/my_robot.urdf
+#         code=$?
+#         if [ $code -eq 2 ]; then exit 1; fi
+#
+# For robots with non-standard wheel naming or legged robots, pass override
+# flags to avoid false UNKNOWN stability results:
+#
+#     - name: Validate legged robot with declared foot contacts
+#       run: |
+#         urdf_validate robot/my_hexapod.urdf \
+#           --robot-type legged \
+#           --contact-links foot_fl,foot_fr,foot_ml,foot_mr,foot_rl,foot_rr
