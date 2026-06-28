@@ -580,7 +580,7 @@ Full schema: [`urdf_validator_main/api/task_schema.py`](urdf_validator_main/api/
 | v0.9 | 9 | **Complete** | Real-pose COM stability during reach; self-collision/clearance checks |
 | v0.10 | 10 | **Complete** | Structured task-query API for AI agents and programmatic callers |
 | v0.11 | 11 | **Complete** | Hardening — full regression across all 6 reference robots + capability-profile URDFs |
-| v1.0 | 12 | **In Progress** | Public release — ROS Discourse announcement, pip package |
+| v1.0 | 12 | **Complete** | Public release — ROS Discourse announcement, pip package |
 
 ---
 

@@ -58,8 +58,8 @@ jobs:
 #
 #     - name: Validate (block on FAIL only)
 #       run: |
-#         urdf_validate robot/my_robot.urdf
-#         code=$?
+#         code=0
+#         urdf_validate robot/my_robot.urdf || code=$?
 #         if [ $code -eq 2 ]; then exit 1; fi
 #
 # For robots with non-standard wheel naming or legged robots, pass override
