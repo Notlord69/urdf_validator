@@ -112,7 +112,7 @@ def test_validation_report_defaults():
     assert r.robot_name == ""
     assert r.robot_type == "unknown"
     assert r.timestamp == ""
-    assert r.validator_version == "0.1.0"
+    assert isinstance(r.validator_version, str) and r.validator_version != ""
     assert r.overall_status == "UNKNOWN"
     assert r.unknowns == []
     assert r.confidence_level == "LOW"

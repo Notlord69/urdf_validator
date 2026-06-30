@@ -3,8 +3,8 @@
   "robot_name": "turtlebot3_burger",
   "robot_type": "wheeled",
   "robot_type_confidence": "estimated",
-  "timestamp": "2026-06-28T08:59:05.401887+00:00",
-  "validator_version": "0.1.0",
+  "timestamp": "2026-06-30T03:06:46.253382+00:00",
+  "validator_version": "1.0.0",
   "schema": {
     "status": "INFO",
     "critical_issues": [],

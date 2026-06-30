@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "urdf-validator"
 version = "1.0.0"
 description = "Physics-aware URDF validation for the ROS 2 community"
+readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.8"
 classifiers = [

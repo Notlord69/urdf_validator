@@ -1,7 +1,15 @@
 from __future__ import annotations
 
+import importlib.metadata
 from dataclasses import dataclass, field
 from typing import List, Literal, Optional
+
+
+def _pkg_version() -> str:
+    try:
+        return importlib.metadata.version("urdf-validator")
+    except importlib.metadata.PackageNotFoundError:
+        return "unknown"
 
 Confidence = Literal["exact", "estimated", "guessed", "missing", "simulated"]
 
@@ -101,7 +109,7 @@ class ValidationReport:
     robot_type: str = "unknown"
     robot_type_confidence: Confidence = "estimated"
     timestamp: str = ""
-    validator_version: str = "1.0.0"
+    validator_version: str = field(default_factory=_pkg_version)
     schema: SchemaReport = field(default_factory=SchemaReport)
     links: List[LinkPhysicsReport] = field(default_factory=list)
     statics: StaticsReport = field(default_factory=StaticsReport)

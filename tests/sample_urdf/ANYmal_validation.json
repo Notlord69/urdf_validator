@@ -3,8 +3,8 @@
   "robot_name": "anymal",
   "robot_type": "quadruped",
   "robot_type_confidence": "estimated",
-  "timestamp": "2026-06-28T08:11:09.341275+00:00",
-  "validator_version": "0.1.0",
+  "timestamp": "2026-06-30T02:46:31.335655+00:00",
+  "validator_version": "0.7.0",
   "schema": {
     "status": "INFO",
     "critical_issues": [],

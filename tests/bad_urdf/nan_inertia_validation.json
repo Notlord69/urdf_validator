@@ -3,8 +3,8 @@
   "robot_name": "nan_bot",
   "robot_type": "unknown",
   "robot_type_confidence": "estimated",
-  "timestamp": "2026-06-28T09:13:51.709039+00:00",
-  "validator_version": "0.1.0",
+  "timestamp": "2026-06-30T03:01:50.140757+00:00",
+  "validator_version": "1.0.0",
   "schema": {
     "status": "WARN",
     "critical_issues": [],
