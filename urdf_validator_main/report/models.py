@@ -15,6 +15,22 @@ Confidence = Literal["exact", "estimated", "guessed", "missing", "simulated"]
 
 
 @dataclass
+class TargetSolution:
+    """One reverse-solved lever for a check: the value that would flip it to PASS.
+
+    `target_value`/`gap` are None when no closed-form inverse exists for this
+    lever — `target_reason` then explains why (never silently omitted).
+    `target_confidence` never exceeds the forward computation's confidence.
+    """
+    lever: str
+    target_value: Optional[float] = None
+    gap: Optional[float] = None
+    unit: str = ""
+    target_confidence: Confidence = "missing"
+    target_reason: Optional[str] = None
+
+
+@dataclass
 class LinkPhysicsReport:
     name: str
     mass: Optional[float] = None
@@ -23,6 +39,7 @@ class LinkPhysicsReport:
     inertia_confidence: Confidence = "missing"
     com_offset: Optional[List[float]] = None
     com_confidence: Confidence = "missing"
+    inertia_divergence_pct: Optional[float] = None
 
 
 @dataclass
@@ -35,6 +52,7 @@ class JointStaticsReport:
     status: str = "UNKNOWN"
     subtree_mass: Optional[float] = None
     summary: Optional[str] = None
+    targets: List[TargetSolution] = field(default_factory=list)
 
 
 @dataclass
@@ -69,6 +87,7 @@ class StabilityReport:
     reason: Optional[str] = None
     deep_validated: bool = False
     contact_confidence: Confidence = "missing"
+    targets: List[TargetSolution] = field(default_factory=list)
 
 
 @dataclass
@@ -92,6 +111,7 @@ class WorkspaceReport:
     self_collision_free_fraction: Optional[float] = None
     self_collision_min_clearance_mm: Optional[float] = None
     self_collision_worst_pair: Optional[List[str]] = None
+    targets: List[TargetSolution] = field(default_factory=list)
 
 
 @dataclass

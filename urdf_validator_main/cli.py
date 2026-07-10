@@ -10,6 +10,7 @@ from urdf_validator_main.checks.stability import run as run_stability
 from urdf_validator_main.checks.statics import run as run_statics
 from urdf_validator_main.checks.workspace import run as run_workspace
 from urdf_validator_main.parser.urdf_adapter import ParseError, ParsedRobot, load_urdf
+from urdf_validator_main.physics.reverse_solve import annotate as run_reverse_solve
 from urdf_validator_main.physics.robot_classifier import detect_robot_type
 from urdf_validator_main.report.formatter import format_report
 from urdf_validator_main.report.json_export import export
@@ -370,6 +371,11 @@ def main() -> None:
                       joint_angles=pose_joint_angles,
                       arm_root=args.arm_root, arm_tip=args.arm_tip,
                       robot_type=effective_type)
+        run_reverse_solve(result, report, joint_angles=pose_joint_angles,
+                          payload_mass=args.payload_mass,
+                          payload_link=args.payload_link,
+                          arm_tip=args.arm_tip,
+                          contact_links=contact_links_list)
         _maybe_run_deep(args, report, path)
 
         report.overall_status = _derive_overall_status(report)

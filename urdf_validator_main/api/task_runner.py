@@ -13,7 +13,8 @@ from urdf_validator_main.checks.statics import run as run_statics
 from urdf_validator_main.checks.stability import run as run_stability
 from urdf_validator_main.checks.workspace import run as run_workspace
 from urdf_validator_main.parser.urdf_adapter import ParseError, load_urdf
-from urdf_validator_main.report.models import ValidationReport
+from urdf_validator_main.physics.reverse_solve import annotate as run_reverse_solve
+from urdf_validator_main.report.models import TargetSolution, ValidationReport
 
 _STATUS_RANK = {"FAIL": 4, "WARN": 3, "PASS": 2, "UNKNOWN": 1, "N/A": 0}
 
@@ -167,6 +168,64 @@ def _self_collision_subcheck(report: ValidationReport) -> SubCheckResult:
     )
 
 
+def _attach_targets(
+    sub_checks: List[SubCheckResult],
+    request: TaskQueryRequest,
+    report: ValidationReport,
+) -> None:
+    """Copy reverse-solved targets onto sub-check results (§3.9.2). Never raises.
+
+    Each sub-check inherits the triads of the report section it was derived
+    from; the reach sub-check gets its own direct distance triad since it
+    compares 3D distance rather than vertical reach.
+    """
+    try:
+        weakest_targets: List[TargetSolution] = []
+        if report.statics.weakest_joint_name is not None:
+            for jr in report.statics.joints:
+                if jr.name == report.statics.weakest_joint_name:
+                    weakest_targets = jr.targets
+                    break
+        for sc in sub_checks:
+            if sc.status == "N/A":
+                continue
+            if sc.name == "payload_strength":
+                sc.targets = list(weakest_targets)
+            elif sc.name == "reach":
+                if request.target_position is not None and report.workspace.reach_from_base is not None:
+                    target_dist = float(np.linalg.norm(request.target_position))
+                    sc.targets = [TargetSolution(
+                        lever="reach_distance", target_value=target_dist,
+                        gap=target_dist - report.workspace.reach_from_base,
+                        unit="m",
+                        target_confidence=report.workspace.reach_confidence,
+                    )]
+                else:
+                    sc.targets = [TargetSolution(
+                        lever="reach_distance", unit="m", target_confidence="missing",
+                        target_reason="reach not computed — no target or no workspace data",
+                    )]
+            elif sc.name == "reach_orientation":
+                sc.targets = [t for t in report.workspace.targets if t.lever == "orientation"]
+                if not sc.targets:
+                    sc.targets = [TargetSolution(
+                        lever="orientation", unit="", target_confidence="missing",
+                        target_reason=(
+                            "boolean outcome — no closed-form inverse for "
+                            "orientation reachability"
+                        ),
+                    )]
+            elif sc.name == "stability_during_reach":
+                sc.targets = list(report.stability.targets)
+            elif sc.name == "self_collision":
+                sc.targets = [
+                    t for t in report.workspace.targets
+                    if t.lever == "self_collision_clearance"
+                ]
+    except Exception:
+        pass  # targets are an additive annotation — never break the response
+
+
 def run_pick_task(
     request: TaskQueryRequest,
     n_samples: Optional[int] = None,
@@ -199,6 +258,7 @@ def run_pick_task(
         target_orientation=request.target_orientation,
         n_samples=n_samples,
     )
+    run_reverse_solve(parsed, report, payload_mass=request.object_mass_kg)
 
     sub_checks = [
         _reach_subcheck(request, report),
@@ -224,6 +284,8 @@ def run_pick_task(
             ),
             confidence="missing",
         ))
+
+    _attach_targets(sub_checks, request, report)
 
     overall = _worst([s.status for s in sub_checks])
 

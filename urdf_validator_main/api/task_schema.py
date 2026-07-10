@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
+from urdf_validator_main.report.models import TargetSolution
+
 Confidence = str  # "exact" | "estimated" | "guessed" | "missing"
 
 
@@ -13,6 +15,7 @@ class SubCheckResult:
     reason: str  # geometric reason — numbers, not prose only
     bottleneck: Optional[str] = None  # link or joint name that is the limiting factor
     confidence: Confidence = "estimated"
+    targets: List[TargetSolution] = field(default_factory=list)
 
 
 @dataclass

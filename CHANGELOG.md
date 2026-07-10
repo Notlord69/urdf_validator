@@ -1,5 +1,45 @@
 # Changelog
 
+## v1.1.0 — 2026-07-10
+
+Reverse-Solve & Target-Value Layer (PRD Q2 §3.9, Phase 8) — every check that can
+be inverted in closed form now reports what value would make it pass, not just
+that it failed.
+
+- New module `physics/reverse_solve.py`: closed-form inverse solvers reading
+  already-computed forward values; no forward math duplicated, no forward
+  module's core computation modified.
+- New `TargetSolution` triad (`target_value` / `gap` / `target_confidence`,
+  plus `target_reason` when no inverse exists) attached as a uniform `targets`
+  list to `JointStaticsReport`, `StabilityReport`, `WorkspaceReport`, and
+  task-query `SubCheckResult`. Multiple applicable levers are reported side by
+  side, unranked.
+- Levers shipped: `effort` (min effort for margin ≥ 1.5), `payload`
+  (max payload holding effort fixed — un-defers the §3.3.4 `payload_capacity_kg`
+  PENDING item, now populated on `StaticsReport`), `moment_arm` +
+  `link_length:<link>` (dominant-link solve; explicit null-with-reason when no
+  single link dominates), `contact_offset:<link>` (20 mm stability margin,
+  first-order), `vertical_reach` (signed `reach_gap_m`), `orientation`
+  (always null — no closed-form inverse), `self_collision_clearance`.
+- Declared-vs-geometry-derived inertia divergence: per-link
+  `inertia_divergence_pct`, `[INERTIA]` warning above 50% divergence.
+- Confidence integrity enforced: a reverse-solved target never carries higher
+  confidence than the forward computation it derives from; missing masses
+  (e.g. the shipped Franka Panda URDF has no inertials) yield explicit
+  null-with-reason targets, never invented numbers.
+- Validation: forward-substitution consistency gates on Fetch and PR2
+  (targets substituted back reproduce margin ≈ 1.5); no-crash sweep across all
+  sample and bad URDFs; independent multi-agent review (math audit, adversarial
+  edge-case hunt, PRD compliance) — findings fixed: sign-aware piecewise
+  link-length solve for opposing gravity/payload torques, `simulated`
+  confidence rank ordering, ±300% actionability bound on link-length advice,
+  `annotate()` idempotency, degenerate-geometry inertia divergence degrading
+  to null. 51 new tests, full suite 702 passing.
+- `docs/json_schema.md`: TargetSolution and lever-name reference added; field
+  names declared stable across v1.1–v1.5.
+
+---
+
 ## v1.0.0 — 2026-06-28
 
 Public release.

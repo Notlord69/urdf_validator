@@ -3,7 +3,7 @@
   "robot_name": "nan_bot",
   "robot_type": "unknown",
   "robot_type_confidence": "estimated",
-  "timestamp": "2026-06-30T03:01:50.140757+00:00",
+  "timestamp": "2026-07-10T06:33:56.443879+00:00",
   "validator_version": "1.0.0",
   "schema": {
     "status": "WARN",
@@ -21,7 +21,8 @@
       "inertia_tensor": null,
       "inertia_confidence": "missing",
       "com_offset": null,
-      "com_confidence": "missing"
+      "com_confidence": "missing",
+      "inertia_divergence_pct": null
     },
     {
       "name": "arm_link",
@@ -40,7 +41,8 @@
       ],
       "inertia_confidence": "missing",
       "com_offset": null,
-      "com_confidence": "missing"
+      "com_confidence": "missing",
+      "inertia_divergence_pct": null
     }
   ],
   "statics": {
@@ -53,7 +55,17 @@
         "margin": null,
         "status": "PASS",
         "subtree_mass": null,
-        "summary": "OK \u2014 torque negligible"
+        "summary": "OK \u2014 torque negligible",
+        "targets": [
+          {
+            "lever": "effort",
+            "target_value": 0.0,
+            "gap": -10.0,
+            "unit": "Nm",
+            "target_confidence": "estimated",
+            "target_reason": null
+          }
+        ]
       }
     ],
     "full_body_com": [
@@ -86,7 +98,17 @@
     "status": "UNKNOWN",
     "reason": "robot type 'unknown' \u2014 stability only computed for wheeled robots",
     "deep_validated": false,
-    "contact_confidence": "missing"
+    "contact_confidence": "missing",
+    "targets": [
+      {
+        "lever": "contact_offset",
+        "target_value": null,
+        "gap": null,
+        "unit": "mm",
+        "target_confidence": "missing",
+        "target_reason": "robot type 'unknown' \u2014 stability only computed for wheeled robots"
+      }
+    ]
   },
   "workspace": {
     "max_reach": 0.0,
@@ -107,7 +129,8 @@
     "orientation_tolerance_deg": null,
     "self_collision_free_fraction": 1.0,
     "self_collision_min_clearance_mm": Infinity,
-    "self_collision_worst_pair": null
+    "self_collision_worst_pair": null,
+    "targets": []
   },
   "overall_status": "WARN",
   "critical_issues": [],
