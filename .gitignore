@@ -12,7 +12,8 @@ htmlcov/
 
 # AI-generated docs and tooling
 docs/
-.claude/
+.claude/*
+!.claude/skills/
 
 # Editors
 .vscode/
@@ -24,4 +25,5 @@ Temp_Progress.md
 # Private
 CLAUDE.md
 Main_urdf_validator_PRD/
-Main_PRD_status/    
+Main_PRD_status/
+Agentic_WorkFlow_Setup/
