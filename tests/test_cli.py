@@ -976,3 +976,80 @@ def test_payload_in_json_output(monkeypatch, tmp_path):
     data = json.loads(json_path.read_text())
     assert data["statics"]["payload_mass"] == pytest.approx(3.0)
     assert data["statics"]["payload_link"] is not None
+
+
+# ---------------------------------------------------------------------------
+# --compare-to (Phase 9, v1.2, PRD_Q2 §3.10.4)
+# ---------------------------------------------------------------------------
+
+def test_compare_to_wired_end_to_end(monkeypatch, tmp_path, capsys):
+    """Self-compare (prior JSON == this run's report) surfaces the comparison
+    block alongside, not instead of, the normal report output."""
+    import json
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+
+    # First run produces the prior report.
+    _run(monkeypatch, [str(urdf), "--output-dir", str(tmp_path)])
+    prior_json = tmp_path / "minimal_validation.json"
+    assert prior_json.exists()
+
+    code = _run(monkeypatch, [str(urdf), "--output-dir", str(tmp_path),
+                               "--compare-to", str(prior_json)])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "[SCHEMA]" in out  # normal report still present
+    assert "=== COMPARISON (--compare-to) ===" in out  # comparison alongside it
+
+
+def test_compare_to_missing_file_structured_error(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    code = _run(monkeypatch, [str(urdf), "--compare-to", str(tmp_path / "nope.json")])
+    assert code == 2
+    captured = capsys.readouterr()
+    out = captured.out + captured.err
+    assert "[ERROR]" in out
+    assert "--compare-to" in out
+
+
+def test_compare_to_malformed_json_structured_error(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    bad_json = tmp_path / "bad.json"
+    bad_json.write_text("{not valid json")
+    code = _run(monkeypatch, [str(urdf), "--compare-to", str(bad_json)])
+    assert code == 2
+    captured = capsys.readouterr()
+    out = captured.out + captured.err
+    assert "[ERROR]" in out
+    assert "--compare-to" in out
+
+
+def test_compare_to_non_utf8_file_structured_error(monkeypatch, tmp_path, capsys):
+    """A non-UTF-8 file must degrade to a structured [ERROR], never a raw traceback."""
+    urdf = tmp_path / "minimal.urdf"
+    urdf.write_text(_MINIMAL_PASS_URDF)
+    bad_json = tmp_path / "bad_encoding.json"
+    bad_json.write_bytes(b"\xff\xfe\x00\x01not utf-8")
+    code = _run(monkeypatch, [str(urdf), "--compare-to", str(bad_json)])
+    assert code == 2
+    captured = capsys.readouterr()
+    out = captured.out + captured.err
+    assert "[ERROR]" in out
+    assert "--compare-to" in out
+
+
+def test_compare_to_does_not_change_exit_code(monkeypatch, tmp_path):
+    """Comparison is diagnostic; exit code stays governed by report.overall_status alone."""
+    import json
+    urdf = tmp_path / "warn_bot.urdf"
+    urdf.write_text(_ZERO_MASS_WARN_URDF)
+
+    code_without = _run(monkeypatch, [str(urdf), "--output-dir", str(tmp_path)])
+    assert code_without == 1  # baseline per test_zero_mass_urdf_exits_1
+
+    prior_json = tmp_path / "warn_bot_validation.json"
+    code_with = _run(monkeypatch, [str(urdf), "--output-dir", str(tmp_path),
+                                    "--compare-to", str(prior_json)])
+    assert code_with == 1  # unchanged by --compare-to

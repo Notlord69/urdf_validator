@@ -107,6 +107,59 @@ no renames without a documented migration note.
 
 ---
 
+## ComparisonResult *(v1.2)*
+
+`compare_reports(report_a, report_b) -> ComparisonResult` (`api/compare.py`) is a pure,
+stateless diff between two already-produced reports — dicts as written by `report/json_export.py`,
+or dataclass instances (`ValidationReport`, `TaskQueryResponse`) passed directly. It holds no
+memory between calls: no filesystem access, no session concept, no persisted history. The caller
+supplies both reports; nothing is read from or written to disk by this layer itself.
+
+| Field | Type | Values | Description |
+|---|---|---|---|
+| `checks` | array of object | see [CheckComparison](#checkcomparison) | One entry per check found in either report. |
+| `schema_note` | string \| null | — | Informational note when `robot_name`, `robot_type`, or `validator_version` differ between the two reports. `null` when they match (or are absent). Never blocks the comparison. |
+
+### CheckComparison
+
+A "check" is a `JointStaticsReport` entry (one per actuated joint), the whole-report
+`StabilityReport`, the whole-report `WorkspaceReport`, or (when comparing `TaskQueryResponse`
+inputs) one `SubCheckResult`. `SchemaReport` is excluded: it has no `targets`/current/target
+concept (it is structural — critical/warning/info string lists, not a physics quantity), so
+comparing it numerically would mean inventing a field it doesn't have. Per-link entries
+(`LinkPhysicsReport`) are excluded for the same reason — no status field to diff.
+
+| Field | Type | Values | Description |
+|---|---|---|---|
+| `check_id` | string | `"statics.joints:<name>"`, `"stability"`, `"workspace"`, `"task.<name>"` | Identifies the check. Joint and task sub-check names are matched across reports by name — never fuzzy-matched. |
+| `presence` | string | `"both"`, `"added"`, `"removed"` | `"added"`/`"removed"` when the check exists in only one report — never silently dropped. |
+| `status_a` / `status_b` | string \| null | — | The check's `status` field in report A / report B. |
+| `current_a` / `current_b` | number \| null | — | The scalar the check's `status` is actually derived from: `margin` for a joint, `margin_mm` for stability. `null` for `workspace` — its `status` has no single driving scalar (derived from several independent sub-conditions: reach, orientation, self-collision clearance); `delta_reason` explains this, and the full numeric picture lives in `levers` instead. |
+| `delta` | number \| null | — | `current_b − current_a`. `null` whenever either side is `null` — `delta_reason` explains why. |
+| `delta_reason` | string \| null | — | Set whenever `delta` is `null`. |
+| `levers` | array of object | see [LeverComparison](#levercomparison) | Per-lever comparison of the check's `targets: List[TargetSolution]` (v1.1). |
+
+### LeverComparison
+
+One `TargetSolution` lever (see [Lever names](#lever-names)), matched by `lever` name across the
+two reports' `targets` lists — never matched across different lever names.
+
+| Field | Type | Values | Description |
+|---|---|---|---|
+| `lever` | string | — | Lever name, e.g. `"effort"`, `"payload"`, `"link_length:<link>"`. |
+| `presence` | string | `"both"`, `"added_in_b"`, `"removed_in_b"` | `"added_in_b"`/`"removed_in_b"` when the lever appears in only one report's `targets` list (e.g. a dominant `link_length` lever that only exists once the ambiguity clears). |
+| `target_value_a` / `target_value_b` | number \| null | per-lever unit | The lever's `target_value` on each side. |
+| `target_mismatch` | boolean | — | `true` when both sides have a non-null `target_value` and they differ (e.g. the declared payload changed between iterations, shifting the effort target). |
+| `current_value_a` / `current_value_b` | number \| null | per-lever unit | Derived as `target_value − gap` from each side's `TargetSolution`. `null` when either input is `null` or non-numeric (booleans are rejected, never coerced). |
+| `delta` | number \| null | per-lever unit | `current_value_b − current_value_a`. `null` when either current value is `null` — `reason` explains why (mirrors the lever's own `target_reason` when available, e.g. the `orientation` lever is always null-with-reason). |
+| `pct_of_gap_closed` | number \| null | dimensionless | `delta / gap_a`, where `gap_a` is report A's `TargetSolution.gap` (i.e. `target_value_a − current_value_a` by construction — not recomputed). Computed only when `gap_a` is known and non-zero; `null` + `reason` otherwise (e.g. `"already at target in report_a — zero denominator"`). |
+| `reason` | string \| null | — | Why `current_value`, `delta`, or `pct_of_gap_closed` is `null`, or why the lever is `added_in_b`/`removed_in_b`. |
+
+Field names and key structure above are a stable contract across v1.2–v1.5: no renames without a
+documented migration note (same stability bar as `TargetSolution` above).
+
+---
+
 ## StaticsReport
 
 | Field | Type | Values | Description |

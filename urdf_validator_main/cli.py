@@ -1,5 +1,7 @@
 import argparse
+import dataclasses
 import importlib.metadata
+import json
 import os
 import sys
 from datetime import datetime, timezone
@@ -179,6 +181,14 @@ def parse_args(argv=None):
         dest="arm_tip",
         help="End-effector link of arm chain (bypasses DOF-heuristic detection; requires --arm-root)",
     )
+    parser.add_argument(
+        "--compare-to",
+        metavar="PRIOR_JSON",
+        default=None,
+        dest="compare_to",
+        help="Compare this validation against a prior JSON report (from a previous run); "
+             "comparison is printed alongside the normal report, not instead of it",
+    )
     args = parser.parse_args(argv)
     if args.task == "custom" and args.height is None:
         parser.error("--height is required when --task is 'custom'")
@@ -227,6 +237,35 @@ def _json_output_path(urdf_file: str, output_dir) -> str:
     if output_dir:
         return os.path.join(output_dir, filename)
     return os.path.join(os.path.dirname(os.path.abspath(urdf_file)), filename)
+
+
+def _format_comparison_result(comparison) -> str:
+    """Minimal text rendering of a compare.ComparisonResult for terminal output.
+
+    Presentation only — reads fields compare_reports() already computed, adds
+    no new comparison logic (one home per semantic: api/compare.py owns the
+    diff, this just prints it).
+    """
+    lines = ["", "=== COMPARISON (--compare-to) ==="]
+    if comparison.schema_note:
+        lines.append(f"[NOTE] {comparison.schema_note}")
+    if not comparison.checks:
+        lines.append("(no comparable checks found in either report)")
+    for c in comparison.checks:
+        lines.append(f"- {c.check_id} [{c.presence}] status: {c.status_a} -> {c.status_b}")
+        if c.delta is not None:
+            lines.append(f"    current: {c.current_a} -> {c.current_b} (delta {c.delta:+.4g})")
+        elif c.delta_reason:
+            lines.append(f"    current: n/a — {c.delta_reason}")
+        for lv in c.levers:
+            if lv.pct_of_gap_closed is not None:
+                lines.append(
+                    f"    lever '{lv.lever}': {lv.pct_of_gap_closed * 100:.1f}% of gap closed"
+                    + (" [target mismatch]" if lv.target_mismatch else "")
+                )
+            elif lv.reason:
+                lines.append(f"    lever '{lv.lever}' [{lv.presence}]: {lv.reason}")
+    return "\n".join(lines)
 
 
 def _maybe_run_deep(args, report, urdf_path: str) -> None:
@@ -336,6 +375,25 @@ def main() -> None:
                 )
                 sys.exit(2)
 
+        # --- Compare-to: load and parse the prior report before building this one ---
+        prior_report_dict = None
+        if args.compare_to:
+            try:
+                with open(args.compare_to, "r", encoding="utf-8") as f:
+                    prior_report_dict = json.load(f)
+            except OSError as exc:
+                print(f"[ERROR] --compare-to: could not read '{args.compare_to}': {exc}",
+                      file=sys.stderr)
+                sys.exit(2)
+            except UnicodeDecodeError as exc:
+                print(f"[ERROR] --compare-to: '{args.compare_to}' is not valid UTF-8 text: {exc}",
+                      file=sys.stderr)
+                sys.exit(2)
+            except json.JSONDecodeError as exc:
+                print(f"[ERROR] --compare-to: '{args.compare_to}' is not valid JSON: {exc}",
+                      file=sys.stderr)
+                sys.exit(2)
+
         try:
             _version = importlib.metadata.version("urdf-validator")
         except importlib.metadata.PackageNotFoundError:
@@ -388,7 +446,15 @@ def main() -> None:
             print(f"[WARN] Could not write JSON report: {exc}", file=sys.stderr)
             json_path = None
 
+        comparison_text = None
+        if prior_report_dict is not None:
+            from urdf_validator_main.api.compare import compare_reports
+            comparison = compare_reports(prior_report_dict, dataclasses.asdict(report))
+            comparison_text = _format_comparison_result(comparison)
+
         print(format_report(report, json_path=json_path))
+        if comparison_text is not None:
+            print(comparison_text)
         sys.exit(_exit_code(report))
     finally:
         if _temp_urdf and os.path.isfile(_temp_urdf):
