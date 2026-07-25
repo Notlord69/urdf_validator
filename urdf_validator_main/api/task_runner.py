@@ -4,6 +4,10 @@ from typing import List, Optional
 
 import numpy as np
 
+from urdf_validator_main.api.overrides import (
+    apply_overrides,
+    parse_override_file_payload,
+)
 from urdf_validator_main.api.task_schema import (
     SubCheckResult,
     TaskQueryRequest,
@@ -12,7 +16,7 @@ from urdf_validator_main.api.task_schema import (
 from urdf_validator_main.checks.statics import run as run_statics
 from urdf_validator_main.checks.stability import run as run_stability
 from urdf_validator_main.checks.workspace import run as run_workspace
-from urdf_validator_main.parser.urdf_adapter import ParseError, load_urdf
+from urdf_validator_main.parser.urdf_adapter import ParseError, ParsedRobot, load_urdf
 from urdf_validator_main.physics.reverse_solve import annotate as run_reverse_solve
 from urdf_validator_main.report.models import TargetSolution, ValidationReport
 
@@ -229,36 +233,72 @@ def _attach_targets(
 def run_pick_task(
     request: TaskQueryRequest,
     n_samples: Optional[int] = None,
+    parsed: Optional[ParsedRobot] = None,
 ) -> TaskQueryResponse:
-    result = load_urdf(request.urdf_path)
+    # `parsed` lets run_pick_sweep parse each URDF once and reuse the IR across
+    # points in one call (D9). Default None → load from path, byte-identical.
+    if parsed is None:
+        result = load_urdf(request.urdf_path)
+        if isinstance(result, ParseError):
+            return TaskQueryResponse(
+                task_type=request.task_type,
+                overall_status="UNKNOWN",
+                sub_checks=[SubCheckResult(
+                    name="urdf_load", status="UNKNOWN",
+                    reason=f"URDF parse error: {result.message}",
+                    confidence="missing",
+                )],
+            )
+        parsed = result
 
-    if isinstance(result, ParseError):
-        return TaskQueryResponse(
-            task_type=request.task_type,
-            overall_status="UNKNOWN",
-            sub_checks=[SubCheckResult(
-                name="urdf_load", status="UNKNOWN",
-                reason=f"URDF parse error: {result.message}",
-                confidence="missing",
-            )],
-        )
+    # --- Overrides (D8): apply to a fresh copy per point; invalid → UNKNOWN ---
+    effective_payload_mass = request.object_mass_kg
+    effective_payload_link: Optional[str] = None
+    active = parsed
+    if request.overrides is not None:
+        specs, parse_errors = parse_override_file_payload({"overrides": request.overrides})
+        outcome = apply_overrides(parsed, specs)
+        error_texts = [e.reason for e in parse_errors] + [e.reason for e in outcome.errors]
+        if outcome.payload_mass is not None:
+            if request.object_mass_kg is not None:
+                error_texts.append(
+                    "payload_mass override conflicts with request.object_mass_kg "
+                    "— specify one"
+                )
+            else:
+                effective_payload_mass = outcome.payload_mass
+        if outcome.payload_link is not None:
+            effective_payload_link = outcome.payload_link
+        if error_texts:
+            return TaskQueryResponse(
+                task_type=request.task_type,
+                overall_status="UNKNOWN",
+                sub_checks=[SubCheckResult(
+                    name="override_validation", status="UNKNOWN",
+                    reason="; ".join(error_texts),
+                    confidence="missing",
+                )],
+                terrain_angle_deg=request.terrain_angle_deg,
+            )
+        active = outcome.robot
 
-    parsed = result
-    report = ValidationReport(urdf_path=request.urdf_path, robot_name=parsed.name)
+    report = ValidationReport(urdf_path=request.urdf_path, robot_name=active.name)
 
     target_height = request.target_position[2] if request.target_position else None
     task_label = "pick" if request.target_position is not None else None
 
-    run_statics(parsed, report, payload_mass=request.object_mass_kg)
-    run_stability(parsed, report)
+    run_statics(active, report, payload_mass=effective_payload_mass,
+                payload_link=effective_payload_link)
+    run_stability(active, report)
     run_workspace(
-        parsed, report,
+        active, report,
         task_name=task_label,
         task_height_m=target_height,
         target_orientation=request.target_orientation,
         n_samples=n_samples,
     )
-    run_reverse_solve(parsed, report, payload_mass=request.object_mass_kg)
+    run_reverse_solve(active, report, payload_mass=effective_payload_mass,
+                      payload_link=effective_payload_link)
 
     sub_checks = [
         _reach_subcheck(request, report),
@@ -305,6 +345,27 @@ def run_pick_sweep(
     """Run run_pick_task for each request in order and return the results as a list.
 
     Each point is independent — a failure at one point does not abort the rest.
-    No caching or reuse across points; defer until performance numbers demand it.
+
+    Each distinct `urdf_path` is parsed exactly once per call and the IR is
+    passed through to every point that uses it (D9): the whole point of the
+    fast-iteration layer is re-validating a sweep of scalar overrides without
+    re-parsing. The parse cache is a local variable — it lives only for the
+    duration of this call and nothing persists after return (INV-2, in-call
+    reuse only). A per-point override never mutates the shared IR;
+    `apply_overrides` deep-copies inside `run_pick_task`.
     """
-    return [run_pick_task(req, n_samples=n_samples) for req in requests]
+    parsed_cache: dict = {}  # urdf_path -> ParsedRobot (in-call only; discarded on return)
+    responses: List[TaskQueryResponse] = []
+    for req in requests:
+        loaded = parsed_cache.get(req.urdf_path)
+        if loaded is None:
+            loaded = load_urdf(req.urdf_path)
+            if not isinstance(loaded, ParseError):
+                parsed_cache[req.urdf_path] = loaded
+        if isinstance(loaded, ParseError):
+            # Degenerate path: let run_pick_task emit the urdf_load UNKNOWN
+            # response (it re-loads and hits the same ParseError branch).
+            responses.append(run_pick_task(req, n_samples=n_samples))
+        else:
+            responses.append(run_pick_task(req, n_samples=n_samples, parsed=loaded))
+    return responses

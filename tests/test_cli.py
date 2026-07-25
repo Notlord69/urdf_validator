@@ -1053,3 +1053,156 @@ def test_compare_to_does_not_change_exit_code(monkeypatch, tmp_path):
     code_with = _run(monkeypatch, [str(urdf), "--output-dir", str(tmp_path),
                                     "--compare-to", str(prior_json)])
     assert code_with == 1  # unchanged by --compare-to
+
+
+# ---------------------------------------------------------------------------
+# v1.3 overrides (--override / --override-file)
+# ---------------------------------------------------------------------------
+
+def test_override_valid_scalar_runs(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "warn_bot.urdf"
+    urdf.write_text(_ZERO_MASS_WARN_URDF)
+    code = _run(monkeypatch, [str(urdf), "--output-dir", str(tmp_path),
+                              "--override", "arm_link.mass=2.0,j1.effort=25"])
+    out = capsys.readouterr().out
+    assert code in (0, 1, 2)
+    assert "[SCHEMA]" in out                 # full pipeline ran
+    assert "override rejected" not in out     # valid overrides accepted
+
+
+def test_override_valid_reflected_in_json(monkeypatch, tmp_path):
+    import json
+    urdf = tmp_path / "warn_bot.urdf"
+    urdf.write_text(_ZERO_MASS_WARN_URDF)
+    _run(monkeypatch, [str(urdf), "--output-dir", str(tmp_path),
+                       "--override", "arm_link.mass=2.0"])
+    report = json.loads((tmp_path / "warn_bot_validation.json").read_text())
+    link = next(l for l in report["links"] if l["name"] == "arm_link")
+    assert link["mass"] == 2.0
+    assert link["mass_confidence"] == "exact"   # HON-4
+
+
+def test_override_geometric_field_rejected_message(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "warn_bot.urdf"
+    urdf.write_text(_ZERO_MASS_WARN_URDF)
+    code = _run(monkeypatch, [str(urdf), "--override", "arm_link.origin_x=0.5"])
+    assert code == 2
+    captured = capsys.readouterr()
+    out = captured.out + captured.err
+    assert "[ERROR] override rejected" in out
+    assert "origin_x" in out
+    assert "resubmit" in out.lower()
+
+
+def test_override_unknown_target_rejected(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "warn_bot.urdf"
+    urdf.write_text(_ZERO_MASS_WARN_URDF)
+    code = _run(monkeypatch, [str(urdf), "--override", "ghost.mass=2.0"])
+    assert code == 2
+    captured = capsys.readouterr()
+    assert "override rejected" in (captured.out + captured.err)
+
+
+def test_override_effort_on_fixed_joint_rejected(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "fixed_bot.urdf"
+    urdf.write_text(
+        "<?xml version='1.0'?><robot name='fb'>"
+        "<link name='base_link'/><link name='tool'/>"
+        "<joint name='jf' type='fixed'><parent link='base_link'/><child link='tool'/></joint>"
+        "</robot>"
+    )
+    code = _run(monkeypatch, [str(urdf), "--override", "jf.effort=5"])
+    assert code == 2
+    captured = capsys.readouterr()
+    assert "override rejected" in (captured.out + captured.err)
+
+
+@pytest.mark.parametrize("spec", ["a.b", "a.b=", "=3", "arm_link.mass=xyz", ""])
+def test_override_malformed_grammar_structured(monkeypatch, tmp_path, capsys, spec):
+    urdf = tmp_path / "warn_bot.urdf"
+    urdf.write_text(_ZERO_MASS_WARN_URDF)
+    code = _run(monkeypatch, [str(urdf), "--override", spec])
+    assert code == 2
+    captured = capsys.readouterr()
+    assert "override rejected" in (captured.out + captured.err)
+
+
+def test_override_duplicate_rejected(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "warn_bot.urdf"
+    urdf.write_text(_ZERO_MASS_WARN_URDF)
+    code = _run(monkeypatch, [str(urdf), "--override", "arm_link.mass=1,arm_link.mass=2"])
+    assert code == 2
+    captured = capsys.readouterr()
+    assert "more than once" in (captured.out + captured.err)
+
+
+def test_override_file_inertia_tensor_runs(monkeypatch, tmp_path, capsys):
+    import json
+    urdf = tmp_path / "warn_bot.urdf"
+    urdf.write_text(_ZERO_MASS_WARN_URDF)
+    ovr = tmp_path / "ovr.json"
+    ovr.write_text(json.dumps({"overrides": [
+        {"target": "arm_link", "field": "inertia", "value": [0.1, 0.0, 0.0, 0.2, 0.0, 0.3]},
+    ]}))
+    code = _run(monkeypatch, [str(urdf), "--output-dir", str(tmp_path),
+                              "--override-file", str(ovr)])
+    assert code in (0, 1, 2)
+    out = capsys.readouterr().out
+    assert "override rejected" not in out
+    report = json.loads((tmp_path / "warn_bot_validation.json").read_text())
+    link = next(l for l in report["links"] if l["name"] == "arm_link")
+    assert link["inertia_confidence"] == "exact"
+
+
+def test_override_file_bad_json_structured_error(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "warn_bot.urdf"
+    urdf.write_text(_ZERO_MASS_WARN_URDF)
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not valid json")
+    code = _run(monkeypatch, [str(urdf), "--override-file", str(bad)])
+    assert code == 2
+    captured = capsys.readouterr()
+    out = captured.out + captured.err
+    assert "[ERROR] --override-file" in out
+    assert "not valid JSON" in out
+
+
+def test_override_file_non_utf8_structured_error(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "warn_bot.urdf"
+    urdf.write_text(_ZERO_MASS_WARN_URDF)
+    bad = tmp_path / "bad_enc.json"
+    bad.write_bytes(b"\xff\xfe\x00\x01not utf-8")
+    code = _run(monkeypatch, [str(urdf), "--override-file", str(bad)])
+    assert code == 2
+    captured = capsys.readouterr()
+    out = captured.out + captured.err
+    assert "[ERROR] --override-file" in out
+    assert "UTF-8" in out
+
+
+def test_override_file_missing_structured_error(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "warn_bot.urdf"
+    urdf.write_text(_ZERO_MASS_WARN_URDF)
+    code = _run(monkeypatch, [str(urdf), "--override-file", str(tmp_path / "nope.json")])
+    assert code == 2
+    captured = capsys.readouterr()
+    assert "[ERROR] --override-file" in (captured.out + captured.err)
+
+
+def test_override_payload_conflicts_with_flag(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "warn_bot.urdf"
+    urdf.write_text(_ZERO_MASS_WARN_URDF)
+    code = _run(monkeypatch, [str(urdf), "--payload-mass", "2.0",
+                              "--override", "payload_mass=3.0"])
+    assert code == 2
+    captured = capsys.readouterr()
+    assert "specify it once" in (captured.out + captured.err)
+
+
+def test_override_payload_mass_accepted(monkeypatch, tmp_path, capsys):
+    urdf = tmp_path / "warn_bot.urdf"
+    urdf.write_text(_ZERO_MASS_WARN_URDF)
+    code = _run(monkeypatch, [str(urdf), "--output-dir", str(tmp_path),
+                              "--override", "payload_mass=1.0,arm_link.mass=2.0"])
+    assert code in (0, 1, 2)
+    assert "override rejected" not in capsys.readouterr().out

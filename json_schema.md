@@ -337,3 +337,87 @@ This mapping enables direct CI integration:
 ```
 
 Non-zero exit fails the CI step without additional configuration.
+
+---
+
+## Overrides (v1.3)
+
+The fast-iteration input layer patches an already-parsed URDF with a **closed
+allowlist of safe scalars** and re-validates without re-parsing, re-running
+xacro, or re-resolving meshes. Geometric and structural changes are **not**
+overridable — they require full URDF resubmission and are rejected with a
+structured error naming the offending field.
+
+**The report schema above is unchanged by overrides.** An override does not add,
+remove, or rename any report field. It only changes the *input values* the
+existing checks compute from. An override-supplied `mass` or `inertia` surfaces
+in the report with `"exact"` confidence (it was "supplied via a user override
+flag"); an override never upgrades the confidence of anything it did not set.
+
+### Allowlist
+
+| Target | Field | Value | Notes |
+|---|---|---|---|
+| link | `mass` | number > 0 | kg. Stamps `mass_confidence = "exact"`. |
+| link | `inertia` | `[ixx, ixy, ixz, iyy, iyz, izz]` (6 numbers) | **File only.** Diagonal entries > 0. Stamps `inertia_confidence = "exact"`. |
+| link | `inertia_scale` | number > 0 | Uniform multiplier on the existing tensor. Rejected if the link has no declared tensor. Stamps `inertia_confidence = "exact"`. |
+| joint (`revolute`/`prismatic`/`continuous`) | `effort` | number > 0 | Nm (or N). Rejected on `fixed`/other joint types. |
+| joint (same) | `velocity` | number > 0 | rad/s (or m/s). Same joint-type rule. |
+| task-level (no target) | `payload_mass` | number > 0 | kg. Feeds the payload-augmented statics. |
+| task-level (no target) | `payload_link` | string | Must name an existing link. |
+
+Any other field — any geometric or structural field, any unknown field, any
+unknown target — is rejected. Application is **all-or-nothing**: if any override
+in the set is invalid, none are applied and every error is reported together.
+The same `target.field` specified twice (within or across sources) is rejected;
+there is no silent last-wins.
+
+### CLI
+
+```bash
+# inline scalars (comma-separated); key split on the last '.' into target.field
+urdf_validate robot.urdf --override "link3.mass=2.0,shoulder_joint.effort=50"
+
+# bare keys with no '.' are task-level
+urdf_validate robot.urdf --override "payload_mass=1.5,payload_link=gripper"
+
+# a full inertia tensor requires the file form (combinable with --override)
+urdf_validate robot.urdf --override-file overrides.json
+```
+
+`--override-file` shape:
+
+```json
+{
+  "overrides": [
+    {"target": "link3", "field": "mass", "value": 2.0},
+    {"target": "link3", "field": "inertia", "value": [0.1, 0.0, 0.0, 0.1, 0.0, 0.05]},
+    {"target": "shoulder_joint", "field": "effort", "value": 50.0},
+    {"target": null, "field": "payload_mass", "value": 1.5}
+  ]
+}
+```
+
+Any override error prints one `[ERROR] override rejected: ...` line per error and
+exits `2` **before any pipeline phase runs** — no partially-patched robot ever
+reaches the checks, and malformed input never produces a traceback.
+
+### Task-query API
+
+`TaskQueryRequest` gains an optional `overrides` field — a list of the same
+`{"target", "field", "value"}` dicts as the file `overrides` array:
+
+```python
+TaskQueryRequest(
+    urdf_path="robot.urdf",
+    task_type="pick",
+    target_position=[0.5, 0.0, 0.8],
+    overrides=[{"target": "shoulder_joint", "field": "effort", "value": 50.0}],
+)
+```
+
+Default `None` reproduces prior behavior byte-for-byte. Invalid overrides make
+the whole response `overall_status = "UNKNOWN"` carrying a single
+`override_validation` sub-check whose `reason` joins the structured errors —
+exactly the shape of the existing `urdf_load` parse-error response. Overrides are
+applied to a deep copy per point; nothing persists across calls.

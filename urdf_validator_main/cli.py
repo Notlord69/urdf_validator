@@ -189,6 +189,25 @@ def parse_args(argv=None):
         help="Compare this validation against a prior JSON report (from a previous run); "
              "comparison is printed alongside the normal report, not instead of it",
     )
+    parser.add_argument(
+        "--override",
+        metavar="SPEC",
+        default=None,
+        dest="override",
+        help="Safe-scalar override(s), 'target.field=value[,target.field=value...]' "
+             "(e.g. 'link3.mass=2.0,joint2.effort=50'); bare 'payload_mass'/'payload_link' "
+             "are task-level. Rejects geometric/unknown fields — use --override-file for "
+             "a full inertia tensor",
+    )
+    parser.add_argument(
+        "--override-file",
+        metavar="OVERRIDES_JSON",
+        default=None,
+        dest="override_file",
+        help="JSON file of overrides "
+             "({\"overrides\": [{\"target\": ..., \"field\": ..., \"value\": ...}]}); "
+             "adds the 6-element inertia tensor. Combinable with --override",
+    )
     args = parser.parse_args(argv)
     if args.task == "custom" and args.height is None:
         parser.error("--height is required when --task is 'custom'")
@@ -394,6 +413,80 @@ def main() -> None:
                       file=sys.stderr)
                 sys.exit(2)
 
+        # --- Overrides: parse, apply to a copy of the IR, resolve payload ---
+        # (Additive; when neither flag is set this whole block is skipped and
+        #  the run is byte-identical to pre-v1.3 behavior — INV-3.)
+        effective_payload_mass = args.payload_mass
+        effective_payload_link = args.payload_link
+        if args.override is not None or args.override_file is not None:
+            from urdf_validator_main.api.overrides import (
+                apply_overrides,
+                parse_override_file_payload,
+                parse_override_string,
+            )
+
+            override_specs = []
+            override_errors = []
+
+            if args.override is not None:
+                specs, errs = parse_override_string(args.override)
+                override_specs.extend(specs)
+                override_errors.extend(errs)
+
+            if args.override_file is not None:
+                # Same structured-error shape as --compare-to (OSError,
+                # UnicodeDecodeError, JSONDecodeError all handled — no traceback).
+                override_payload = None
+                try:
+                    with open(args.override_file, "r", encoding="utf-8") as f:
+                        override_payload = json.load(f)
+                except OSError as exc:
+                    print(f"[ERROR] --override-file: could not read '{args.override_file}': {exc}",
+                          file=sys.stderr)
+                    sys.exit(2)
+                except UnicodeDecodeError as exc:
+                    print(f"[ERROR] --override-file: '{args.override_file}' is not valid UTF-8 text: {exc}",
+                          file=sys.stderr)
+                    sys.exit(2)
+                except json.JSONDecodeError as exc:
+                    print(f"[ERROR] --override-file: '{args.override_file}' is not valid JSON: {exc}",
+                          file=sys.stderr)
+                    sys.exit(2)
+                specs, errs = parse_override_file_payload(override_payload)
+                override_specs.extend(specs)
+                override_errors.extend(errs)
+
+            outcome = apply_overrides(result, override_specs)
+            override_errors.extend(outcome.errors)
+
+            # Task-level payload from overrides feeds the pipeline; a value set
+            # both by an override and by the matching --payload flag is a
+            # conflict (no silent last-wins, mirroring the duplicate rule).
+            if outcome.payload_mass is not None:
+                if args.payload_mass is not None:
+                    override_errors.append(
+                        "payload_mass supplied by both --override and --payload-mass "
+                        "— specify it once"
+                    )
+                else:
+                    effective_payload_mass = outcome.payload_mass
+            if outcome.payload_link is not None:
+                if args.payload_link is not None:
+                    override_errors.append(
+                        "payload_link supplied by both --override and --payload-link "
+                        "— specify it once"
+                    )
+                else:
+                    effective_payload_link = outcome.payload_link
+
+            if override_errors:
+                for err in override_errors:
+                    reason = err if isinstance(err, str) else err.reason
+                    print(f"[ERROR] override rejected: {reason}", file=sys.stderr)
+                sys.exit(2)
+
+            result = outcome.robot  # overridden IR feeds the normal pipeline
+
         try:
             _version = importlib.metadata.version("urdf-validator")
         except importlib.metadata.PackageNotFoundError:
@@ -420,8 +513,8 @@ def main() -> None:
         run_schema_checks(result, report)
         _populate_link_physics(result, report)
         run_statics(result, report, joint_angles=pose_joint_angles,
-                    payload_mass=args.payload_mass,
-                    payload_link=args.payload_link,
+                    payload_mass=effective_payload_mass,
+                    payload_link=effective_payload_link,
                     arm_tip=args.arm_tip)
         run_stability(result, report, joint_angles=pose_joint_angles,
                       robot_type=effective_type, contact_links=contact_links_list)
@@ -430,8 +523,8 @@ def main() -> None:
                       arm_root=args.arm_root, arm_tip=args.arm_tip,
                       robot_type=effective_type)
         run_reverse_solve(result, report, joint_angles=pose_joint_angles,
-                          payload_mass=args.payload_mass,
-                          payload_link=args.payload_link,
+                          payload_mass=effective_payload_mass,
+                          payload_link=effective_payload_link,
                           arm_tip=args.arm_tip,
                           contact_links=contact_links_list)
         _maybe_run_deep(args, report, path)

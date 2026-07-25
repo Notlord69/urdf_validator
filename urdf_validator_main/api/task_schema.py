@@ -26,6 +26,11 @@ class TaskQueryRequest:
     target_orientation: Optional[Any] = None        # "top_down" | "side" | [r,p,y] | [qw,qx,qy,qz]
     object_mass_kg: Optional[float] = None
     terrain_angle_deg: float = 0.0
+    # v1.3 safe-scalar overrides (§3.11): list of
+    # {"target": <link|joint|null>, "field": <field>, "value": <number|str|[6]>}
+    # dicts, coerced via api.overrides.parse_override_file_payload. Default None
+    # → byte-identical prior behavior (INV-3).
+    overrides: Optional[List[dict]] = None
 
 
 @dataclass

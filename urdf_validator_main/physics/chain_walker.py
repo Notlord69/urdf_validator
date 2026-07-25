@@ -101,7 +101,9 @@ def walk(
 
     # Root = link that is never a joint child
     root_candidates = link_names - child_set
-    root_name = next(iter(root_candidates)) if root_candidates else robot.links[0].name
+    # min(), not next(iter(...)): a malformed multi-root robot must yield the
+    # same root every run regardless of set hash order (deterministic contract).
+    root_name = min(root_candidates) if root_candidates else robot.links[0].name
 
     result: Dict[str, LinkFrame] = {}
     queue: deque = deque([(root_name, np.eye(4))])

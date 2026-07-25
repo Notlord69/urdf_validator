@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<!--
+  Minimal synthetic 1-DOF arm for v1.3 acceptance criterion 7 (sweep crossover
+  consistency). Mirrors the hand-computed toy arm already validated in
+  tests/test_reverse_solve.py (`_toy_arm`):
+
+    arm_link : mass 2.0 kg, COM at x=0.5 m from joint j1 (axis +Y, at origin)
+    tau_j1   = 2.0 * 9.81 * 0.5 = 9.81 Nm   (zero pose, gravity along -Z)
+    target_effort_nm (margin >= 1.5)  = 1.5 * 9.81 = 14.715 Nm
+
+  j1's declared effort (5.0 Nm) is deliberately undersized (margin ~0.51,
+  well below the FAIL threshold of 1.0) so a sweep of overridden effort
+  values crosses FAIL, then WARN, then PASS as it passes 9.81 Nm and 14.715 Nm.
+-->
+<robot name="synthetic_arm_v13">
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+    </inertial>
+    <visual>
+      <geometry><box size="0.1 0.1 0.1"/></geometry>
+    </visual>
+    <collision>
+      <geometry><box size="0.1 0.1 0.1"/></geometry>
+    </collision>
+  </link>
+
+  <link name="arm_link">
+    <inertial>
+      <origin xyz="0.5 0 0" rpy="0 0 0"/>
+      <mass value="2.0"/>
+      <inertia ixx="0.003" ixy="0" ixz="0" iyy="0.003" iyz="0" izz="0.003"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.5 0 0" rpy="0 0 0"/>
+      <geometry><box size="1.0 0.1 0.1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.5 0 0" rpy="0 0 0"/>
+      <geometry><box size="1.0 0.1 0.1"/></geometry>
+    </collision>
+  </link>
+
+  <link name="ee_link">
+    <!-- deliberately massless (mirrors _toy_arm's "ee" link in
+         tests/test_reverse_solve.py) so it contributes no gravity torque,
+         keeping req == 2.0 * 9.81 * 0.5 == 9.81 Nm exactly -->
+    <visual>
+      <geometry><box size="0.05 0.05 0.05"/></geometry>
+    </visual>
+    <collision>
+      <geometry><box size="0.05 0.05 0.05"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="j1" type="revolute">
+    <parent link="base_link"/>
+    <child link="arm_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="5.0" velocity="1.0"/>
+  </joint>
+
+  <joint name="j2" type="fixed">
+    <parent link="arm_link"/>
+    <child link="ee_link"/>
+    <origin xyz="1.0 0 0" rpy="0 0 0"/>
+  </joint>
+</robot>

@@ -38,7 +38,9 @@ def detect_arm_chains(parsed: ParsedRobot, max_chains: int = 2) -> List[ArmChain
     terminals = link_names - parent_set
 
     candidates: List[ArmChain] = []
-    for terminal in terminals:
+    # Sorted iteration: candidate order must not depend on set hash order, so
+    # equal-DOF ties always resolve to the same chain (deterministic contract).
+    for terminal in sorted(terminals):
         joints_reversed: List[ParsedJoint] = []
         current = terminal
         visited: set = set()
