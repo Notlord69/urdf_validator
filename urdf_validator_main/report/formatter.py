@@ -1,5 +1,11 @@
+import math
 import os
 
+# The inertia-divergence display threshold has exactly one home: the same
+# constant the reverse-solve layer already flags on (INV-6). Importing it here
+# keeps the terminal detail line and the `[INERTIA]` advisory warnings from
+# drifting apart. Nothing is computed here — presentation only.
+from urdf_validator_main.physics.reverse_solve import _INERTIA_FLAG_PCT
 from urdf_validator_main.report.models import LinkPhysicsReport, SchemaReport, StaticsReport, StabilityReport, ValidationReport
 
 _GREEN = "\033[32m"
@@ -9,6 +15,21 @@ _CYAN = "\033[36m"
 _RESET = "\033[0m"
 
 _MIN_WIDTH = 52
+
+# --- Target/gap triad rendering (PRD §3.12.1) -------------------------------
+# A FAIL/WARN line gains one second line listing every lever that has a
+# closed-form value, joined by ", OR ", in the order the reverse-solve layer
+# produced them — never ranked, never re-sorted (HON-5). Levers whose
+# `target_value` is None are skipped here (the JSON still carries them with
+# their `target_reason` — HON-3); when every lever is null the whole line is
+# omitted rather than printed empty.
+_TRIAD_PREFIX = "-> target:"
+_TRIAD_SEPARATOR = ", OR "
+
+# Levers that answer "can this reach?" — the only ones relevant to the task
+# section's reach verdict (a self-collision clearance lever on a reach line
+# would be a non-sequitur, so the task line filters to these).
+_REACH_LEVERS = ("vertical_reach", "reach_distance")
 
 
 def format_report(report: ValidationReport, json_path: str = None) -> str:
@@ -37,6 +58,103 @@ def _header(report: ValidationReport) -> list:
     ]
 
 
+def _lever_base(target) -> str:
+    """`link_length:link3` -> `link_length`; anything unreadable -> ``""``."""
+    lever = getattr(target, "lever", "") or ""
+    return lever.split(":", 1)[0] if isinstance(lever, str) else ""
+
+
+def _target_clause(target) -> str:
+    """Render one lever as an ASCII clause, or "" when it carries no value.
+
+    Reads an already-computed `TargetSolution`; performs no arithmetic beyond
+    formatting. Tolerates partially-populated or foreign objects (INV-12):
+    anything it cannot read renders as "" and is dropped from the line.
+    """
+    value = getattr(target, "target_value", None)
+    if value is None or isinstance(value, bool):
+        return ""
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return ""
+    if not math.isfinite(value):
+        return ""
+
+    lever = getattr(target, "lever", "") or ""
+    if not isinstance(lever, str):
+        return ""
+    base, _, qualifier = lever.partition(":")
+
+    if base == "effort":
+        return f">= {value:.1f} Nm effort"
+    if base == "payload":
+        return f"<= {value:.1f} kg payload"
+    if base == "link_length":
+        return f"{value:+.0f}% {qualifier or 'link'} length"
+    if base == "moment_arm":
+        return f"<= {value:.3f} m moment arm"
+    if base == "contact_offset":
+        return f"move {qualifier or 'contact'} out {value:.1f} mm"
+    if base in _REACH_LEVERS:
+        return f">= {value:.2f} m reach"
+    if base == "self_collision_clearance":
+        return f"{value:+.1f} mm clearance"
+
+    # Unknown lever (a future solver, or a hand-built report): still honest —
+    # name it, print its value and unit rather than dropping it silently.
+    unit = getattr(target, "unit", "") or ""
+    unit_str = f" {unit}" if isinstance(unit, str) and unit else ""
+    return f"{lever} {value:g}{unit_str}"
+
+
+def _triad_line(targets, indent: int, only_levers=None) -> list:
+    """The single `-> target:` line for one FAIL/WARN line, or [] if none apply.
+
+    `only_levers` restricts which levers belong on this particular line; None
+    means "every lever on the backing report object".
+    """
+    try:
+        clauses = []
+        for target in targets or []:
+            if only_levers is not None and _lever_base(target) not in only_levers:
+                continue
+            clause = _target_clause(target)
+            if clause:
+                clauses.append(clause)
+        if not clauses:
+            return []
+        return [f"{' ' * indent}{_TRIAD_PREFIX} {_TRIAD_SEPARATOR.join(clauses)}"]
+    except Exception:
+        return []
+
+
+def _inertia_divergence_lines(links: list) -> list:
+    """Per-link detail line for declared-vs-geometry-derived inertia divergence.
+
+    Only links above the same threshold the reverse-solve layer flags on are
+    shown — below-threshold links stay silent (polish, not noise), and a link
+    whose divergence could not be computed (None) prints nothing.
+    """
+    lines = []
+    for lnk in links or []:
+        try:
+            pct = getattr(lnk, "inertia_divergence_pct", None)
+            if pct is None or isinstance(pct, bool):
+                continue
+            pct = float(pct)
+            if not math.isfinite(pct) or pct <= _INERTIA_FLAG_PCT:
+                continue
+            name = getattr(lnk, "name", "") or "?"
+            lines.append(
+                f"  {name:<20}  inertia divergence {pct:.0f}% "
+                "(declared vs geometry-derived)"
+            )
+        except Exception:
+            continue
+    return lines
+
+
 def _physics_section(links: list) -> list:
     if not links:
         return ["[PHYSICS]  (no links)"]
@@ -49,19 +167,22 @@ def _physics_section(links: list) -> list:
     inertia_missing = n - inertia_exact
 
     if mass_missing == 0 and inertia_missing == 0:
-        return [f"[PHYSICS]  {_GREEN}✓{_RESET} {n} link{plural} — all mass & inertia declared"]
-
-    summary = (
-        f"[PHYSICS]  {n} link{plural} — "
-        f"mass: {mass_exact} exact, {mass_missing} missing · "
-        f"inertia: {inertia_exact} exact, {inertia_missing} missing"
-    )
-    lines = [summary]
-    for lnk in links:
-        if lnk.mass_confidence == "missing" or lnk.inertia_confidence == "missing":
-            lines.append(
-                f"  {lnk.name:<20}  mass={lnk.mass_confidence}  inertia={lnk.inertia_confidence}"
-            )
+        lines = [f"[PHYSICS]  {_GREEN}✓{_RESET} {n} link{plural} — all mass & inertia declared"]
+    else:
+        lines = [(
+            f"[PHYSICS]  {n} link{plural} — "
+            f"mass: {mass_exact} exact, {mass_missing} missing · "
+            f"inertia: {inertia_exact} exact, {inertia_missing} missing"
+        )]
+        for lnk in links:
+            if lnk.mass_confidence == "missing" or lnk.inertia_confidence == "missing":
+                lines.append(
+                    f"  {lnk.name:<20}  mass={lnk.mass_confidence}  inertia={lnk.inertia_confidence}"
+                )
+    # Divergence is only computable for links that DID declare mass + inertia,
+    # so these lines complement the missing-data lines above rather than
+    # duplicating them — and they belong on the all-declared path too.
+    lines.extend(_inertia_divergence_lines(links))
     return lines
 
 
@@ -129,6 +250,8 @@ def _statics_section(statics: StaticsReport) -> list:
             f"  {j.name:<28}  req {req_str:<10}  declared {eff_str:<14}  "
             f"{margin_str}  {color}{j.status}{_RESET}{summary_str}"
         )
+        if j.status in ("FAIL", "WARN"):
+            lines.extend(_triad_line(getattr(j, "targets", None), indent=4))
     return lines
 
 
@@ -189,6 +312,9 @@ def _task_section(workspace) -> list:
         vr = workspace.vertical_reach
         vr_str = f"{vr:.3f} m" if vr is not None else "?"
         lines.append(f"        height reachable: {_RED}NO{_RESET}   vertical reach {vr_str}")
+        lines.extend(_triad_line(
+            getattr(workspace, "targets", None), indent=10, only_levers=_REACH_LEVERS
+        ))
 
     if workspace.task_com_stable_during_reach is None:
         reason = workspace.task_reason or "stability data unavailable"
@@ -237,6 +363,9 @@ def _stability_section(stability: StabilityReport) -> list:
     deep_str = f"  {_GREEN}[SIM]{_RESET}" if stability.deep_validated else ""
 
     lines = [f"[STABILITY]  {badge}{margin_str}{tip_str}{deep_str}"]
+
+    if stability.status in ("FAIL", "WARN") or stability.stable is False:
+        lines.extend(_triad_line(getattr(stability, "targets", None), indent=13))
 
     if stability.com_height_ratio is not None:
         cls_str = stability.com_height_ratio_class or ""

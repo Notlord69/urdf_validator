@@ -1,0 +1,231 @@
+<?xml version="1.0"?>
+<!--
+  ===========================================================================
+  synthetic_arm_v14 — flagship 4-DOF arm for the v1.4 acceptance scenario
+  (PRD Q2 §5.2). Every number below is hand-computable; tests/test_v14_
+  acceptance.py asserts against these values, so treat this comment block as
+  the fixture's specification, not as documentation of it.
+
+  Conventions (identical to tests/sample_urdf/synthetic_arm_v13.urdf, chosen
+  so the zero-pose statics are exact rather than approximate):
+    * every joint axis is +Y, every link extends along +X, gravity is -Z
+    * every link's COM sits on the +X centre line of its own box
+    * validated in the ZERO pose (the CLI default)
+
+  With those conventions the gravity torque about a +Y joint axis reduces to
+  a scalar sum (no cross products survive):
+
+      tau_joint = g * SUM_over_subtree( m_i * (x_com_i - x_joint) ),  g = 9.81
+
+  ===========================================================================
+  GEOMETRY (world x, zero pose)
+  ===========================================================================
+    joint1 @ x=0.0     link1 frame @ 0.0    m=1.0   COM @ 0.10
+    joint2 @ x=0.2     link2 frame @ 0.2    m=0.5   COM @ 0.25
+    joint3 @ x=0.3     link3 frame @ 0.3    m=2.5   COM @ 0.80   (length 1.0)
+    joint4 @ x=1.3     link4 frame @ 1.3    m=0.5   COM @ 1.35
+    base_link          m=1.0   COM @ 0.0            total mass 5.5 kg
+  link4 is the terminal link, so the auto-detected arm chain is
+  base_link -> link4 (4 DOF) and a payload attaches at x=1.3.
+
+  ===========================================================================
+  REQUIRED TORQUES / MARGINS (declared efforts in the <limit> tags)
+  ===========================================================================
+    tau_joint1 = 9.81 * (1.0*0.10 + 0.5*0.25 + 2.5*0.80 + 0.5*1.35)
+               = 9.81 * 2.900   = 28.44900 Nm   effort 60 -> margin 2.109  PASS
+    tau_joint2 = 9.81 * (0.5*0.05 + 2.5*0.60 + 0.5*1.15)
+               = 9.81 * 2.100   = 20.60100 Nm   effort 20 -> margin 0.9708 FAIL
+    tau_joint3 = 9.81 * (2.5*0.50 + 0.5*1.05)
+               = 9.81 * 1.775   = 17.41275 Nm   effort 45 -> margin 2.584  PASS
+    tau_joint4 = 9.81 * (0.5*0.05)
+               = 9.81 * 0.025   =  0.24525 Nm   effort  5 -> margin 20.39  PASS
+
+  joint2 is therefore the ONLY failing joint and the weakest joint.
+  (Margins are declared_effort / tau; FAIL below 1.0, WARN below 1.5.)
+
+  ===========================================================================
+  REVERSE-SOLVED TARGETS FOR joint2  (physics/reverse_solve.py, margin 1.5)
+  ===========================================================================
+  effort lever:
+      target_effort_nm = 1.5 * 20.60100 = 30.90150 Nm
+      (link3's mass is 2.5 kg, not 3.0, specifically so that 1.5*tau is
+       exactly representable and 1.5*tau/tau == 1.5 in IEEE-754 — at 3.0 kg
+       the round-trip lands one ULP BELOW 1.5 and step 2 of §5.2 would report
+       WARN instead of PASS.)
+
+  payload lever:
+      NULL by construction — joint2 is already below 1.5x margin with zero
+      payload, so no payload reduction reaches the target. reverse_solve
+      emits target_value=null plus target_reason (HON-3), and the terminal
+      triad line skips it (§3.12.1).
+
+  moment_arm lever (subtree mass m_sub = 0.5 + 2.5 + 0.5 = 3.5 kg):
+      arm_eff    = 20.60100 / (3.5 * 9.81) = 2.100/3.500 = 0.6000000 m
+      target_arm = (20.0 / 1.5) / (3.5 * 9.81)           = 0.3883307 m
+      gap        = 0.3883307 - 0.6000000                 = -0.2116693 m
+
+  link_length lever — link3 must be the DOMINANT sensitivity link, i.e. its
+  d(tau)/d(scale) must exceed 50% of the total AND lead the runner-up by 2x
+  (reverse_solve._moment_arm_targets). Per-link sensitivity (units of g):
+      link2 : 0.5*0.05 + (2.5+0.5)*0.10 = 0.325
+      link3 : 2.5*0.50 + 0.5*1.00       = 1.750   <- 83.3% of total, 5.4x link2
+      link4 : 0.5*0.05                  = 0.025
+      total                             = 2.100   (= tau_joint2 / g, as it must)
+  so the dominant-link solve runs and yields
+      scale s = 1 + ((20.0/1.5) - 20.60100) / (1.750 * 9.81) = 0.5766613
+      target_link_length_pct_change = -42.3339 %
+
+  ===========================================================================
+  PAYLOAD CAPACITY (payload attaches at link4's frame origin, x = 1.3)
+  ===========================================================================
+      capacity_j = (effort_j / 1.5 - tau_j) / (g * (1.3 - x_joint_j))
+      joint1 : (60/1.5 - 28.44900) / (9.81*1.3) = 11.55100 / 12.753 = 0.905748 kg
+      joint2 : negative while effort is 20 Nm (joint already under-margin)
+      joint3 : (45/1.5 - 17.41275) / (9.81*1.0) = 12.58725 /  9.810 = 1.283103 kg
+      joint4 : payload sits AT its origin -> zero moment arm -> lever absent
+  With joint2's effort overridden to 60 Nm (its capacity then 1.797702 kg),
+  joint1 is the binding joint and the robot payload capacity is
+      max_payload_kg = 0.9057476 kg
+  which is the crossover the §5.2 step-5 sweep must reproduce.
+
+  ===========================================================================
+  INERTIA DIVERGENCE (declared vs geometry-derived, §3.9.3 row 7)
+  ===========================================================================
+  Declared inertias below are the exact uniform-box tensors for each link's
+  own collision box EXCEPT:
+    * link2 — declared 1.2x the box estimate ->  20% divergence (BELOW the
+              50% flag threshold: must stay silent in the terminal)
+    * link4 — declared 3.0x the box estimate -> 200% divergence (ABOVE it:
+              must render the per-link line and the [INERTIA] warning)
+  Box tensor: ixx = m/12*(w^2+h^2), iyy = m/12*(l^2+h^2), izz = m/12*(l^2+w^2).
+  ===========================================================================
+-->
+<robot name="synthetic_arm_v14">
+
+  <!-- base_link: 0.1 m cube, m=1.0 -> I = 1.0/12*(0.01+0.01) = 0.00166667 (0% divergence) -->
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.00166667" ixy="0" ixz="0" iyy="0.00166667" iyz="0" izz="0.00166667"/>
+    </inertial>
+    <visual>
+      <geometry><box size="0.1 0.1 0.1"/></geometry>
+    </visual>
+    <collision>
+      <geometry><box size="0.1 0.1 0.1"/></geometry>
+    </collision>
+  </link>
+
+  <!-- link1: box 0.2 x 0.08 x 0.08, m=1.0, COM @ local x=0.10 (0% divergence)
+       ixx = 1.0/12*(0.0064+0.0064) = 0.00106667
+       iyy = izz = 1.0/12*(0.04+0.0064) = 0.00386667 -->
+  <link name="link1">
+    <inertial>
+      <origin xyz="0.1 0 0" rpy="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.00106667" ixy="0" ixz="0" iyy="0.00386667" iyz="0" izz="0.00386667"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.1 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.2 0.08 0.08"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.1 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.2 0.08 0.08"/></geometry>
+    </collision>
+  </link>
+
+  <!-- link2: box 0.1 x 0.08 x 0.08, m=0.5, COM @ local x=0.05
+       box estimate: ixx = 0.00053333, iyy = izz = 0.00068333
+       DECLARED at 1.2x the estimate -> 20% divergence (below the 50% flag) -->
+  <link name="link2">
+    <inertial>
+      <origin xyz="0.05 0 0" rpy="0 0 0"/>
+      <mass value="0.5"/>
+      <inertia ixx="0.00064" ixy="0" ixz="0" iyy="0.00082" iyz="0" izz="0.00082"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.05 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.1 0.08 0.08"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.05 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.1 0.08 0.08"/></geometry>
+    </collision>
+  </link>
+
+  <!-- link3: box 1.0 x 0.08 x 0.08, m=2.5, COM @ local x=0.50 (0% divergence)
+       ixx = 2.5/12*(0.0064+0.0064) = 0.00266667
+       iyy = izz = 2.5/12*(1.0+0.0064) = 0.20966667
+       This is the dominant-sensitivity link the link_length lever solves for. -->
+  <link name="link3">
+    <inertial>
+      <origin xyz="0.5 0 0" rpy="0 0 0"/>
+      <mass value="2.5"/>
+      <inertia ixx="0.00266667" ixy="0" ixz="0" iyy="0.20966667" iyz="0" izz="0.20966667"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.5 0 0" rpy="0 0 0"/>
+      <geometry><box size="1.0 0.08 0.08"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.5 0 0" rpy="0 0 0"/>
+      <geometry><box size="1.0 0.08 0.08"/></geometry>
+    </collision>
+  </link>
+
+  <!-- link4: box 0.1 x 0.08 x 0.08, m=0.5, COM @ local x=0.05
+       box estimate: ixx = 0.00053333, iyy = izz = 0.00068333
+       DECLARED at 3.0x the estimate -> 200% divergence (above the 50% flag) -->
+  <link name="link4">
+    <inertial>
+      <origin xyz="0.05 0 0" rpy="0 0 0"/>
+      <mass value="0.5"/>
+      <inertia ixx="0.0016" ixy="0" ixz="0" iyy="0.00205" iyz="0" izz="0.00205"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.05 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.1 0.08 0.08"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.05 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.1 0.08 0.08"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="joint1" type="revolute">
+    <parent link="base_link"/>
+    <child link="link1"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="60.0" velocity="1.0"/>
+  </joint>
+
+  <!-- joint2: deliberately undersized. 20.0 Nm declared against 20.601 Nm
+       required -> margin 0.9708 -> FAIL. -->
+  <joint name="joint2" type="revolute">
+    <parent link="link1"/>
+    <child link="link2"/>
+    <origin xyz="0.2 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="20.0" velocity="1.0"/>
+  </joint>
+
+  <joint name="joint3" type="revolute">
+    <parent link="link2"/>
+    <child link="link3"/>
+    <origin xyz="0.1 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="45.0" velocity="1.0"/>
+  </joint>
+
+  <joint name="joint4" type="revolute">
+    <parent link="link3"/>
+    <child link="link4"/>
+    <origin xyz="1.0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="5.0" velocity="1.0"/>
+  </joint>
+
+</robot>

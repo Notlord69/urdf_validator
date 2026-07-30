@@ -491,7 +491,7 @@ The tool never presents an estimated value as ground truth.
 
 ## JSON output
 
-Every run writes `<robot>_validation.json` containing the full `ValidationReport`. The schema is stable across minor versions and documented in [`docs/json_schema.md`](docs/json_schema.md).
+Every run writes `<robot>_validation.json` containing the full `ValidationReport`. The schema is stable across minor versions and documented in [`json_schema.md`](json_schema.md).
 
 ```json
 {
@@ -561,7 +561,7 @@ responses = run_pick_sweep([req1, req2, req3])
 # Returns List[TaskQueryResponse], order preserved, failures isolated
 ```
 
-Full schema: [`urdf_validator_main/api/task_schema.py`](urdf_validator_main/api/task_schema.py) and [`urdf_validator_main/api/task_runner.py`](urdf_validator_main/api/task_runner.py). Documented in [`docs/json_schema.md`](docs/json_schema.md).
+Full schema: [`urdf_validator_main/api/task_schema.py`](urdf_validator_main/api/task_schema.py) and [`urdf_validator_main/api/task_runner.py`](urdf_validator_main/api/task_runner.py). Documented in [`json_schema.md`](json_schema.md).
 
 ---
 
