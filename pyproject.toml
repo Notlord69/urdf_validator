@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "urdf-validator"
-version = "1.4.0"
+version = "1.5.0"
 description = "Physics-aware URDF validation for the ROS 2 community"
 readme = "README.md"
 license = {text = "MIT"}
@@ -33,11 +33,13 @@ dependencies = [
 [project.optional-dependencies]
 xacro = ["xacro"]
 mujoco = ["mujoco"]
+mcp = ["mcp>=2"]
 full = ["xacro", "mujoco"]
 dev = ["pytest"]
 
 [project.scripts]
 urdf_validate = "urdf_validator_main.cli:main"
+urdf_validate_mcp = "urdf_validator_main.mcp_adapter.server:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -421,3 +421,103 @@ the whole response `overall_status = "UNKNOWN"` carrying a single
 `override_validation` sub-check whose `reason` joins the structured errors —
 exactly the shape of the existing `urdf_load` parse-error response. Overrides are
 applied to a deep copy per point; nothing persists across calls.
+
+---
+
+## MCP Adapter (v1.5)
+
+`urdf_validate_mcp` serves the existing capability surface over the Model
+Context Protocol (stdio transport). The adapter introduces **no new schema**:
+every payload below is one of the shapes already documented in this file. It
+computes nothing of its own.
+
+### Serialization contract
+
+Every tool result is a single `text` content block holding a JSON document
+produced by
+
+```python
+json.dumps(dataclasses.asdict(obj), cls=_ReportEncoder, indent=2)
+```
+
+— the same numpy-safe encoder and indentation `report/json_export.export()`
+writes with. A `validate_urdf` result is therefore **byte-identical** to the
+`<stem>_validation.json` the CLI writes for the same input, `timestamp` aside.
+
+### Tools
+
+| Tool | Arguments | Result shape |
+|---|---|---|
+| `validate_urdf` | `urdf_path` (required), `payload_mass`, `payload_link`, `robot_type` | The top-level report object ("Top-level object" above) |
+| `run_pick_task` | `urdf_path` (required), `task_type` (default `"pick"`), `target_position`, `target_orientation`, `object_mass_kg`, `terrain_angle_deg`, `overrides` | `TaskQueryResponse` |
+| `run_pick_sweep` | `requests`: non-empty array of `run_pick_task` argument objects | Array of `TaskQueryResponse`, request order preserved |
+| `solve_target` | `urdf_path` (required), `payload_mass`, `payload_link` | Targets-only projection (below) |
+| `compare_reports` | `report_a`, `report_b` (both required, both report objects) | `ComparisonResult` |
+| `apply_overrides` | `urdf_path`, `overrides` (both required) | The top-level report object for the patched robot |
+
+Argument names and types match the shapes already documented above:
+`payload_mass` / `object_mass_kg` are positive numbers in kg, `robot_type` is
+one of `wheeled | legged | humanoid | arm_only | aerial | ground_vehicle |
+unknown` (the `--robot-type` vocabulary), `overrides` entries are the
+`{"target", "field", "value"}` objects of the "Overrides (v1.3)" section, and
+`target_position` / `target_orientation` follow `TaskQueryRequest`.
+
+Unknown argument names are rejected rather than ignored, and every tool schema
+declares `"additionalProperties": false`.
+
+### `solve_target` result
+
+A projection of one forward pass — reverse-solved `targets` plus each check's
+status for context, and nothing else. Values are identical to the
+corresponding fields of a `validate_urdf` result for the same input.
+
+```json
+{
+  "urdf_path": "arm.urdf",
+  "robot_name": "arm",
+  "overall_status": "FAIL",
+  "statics": {
+    "status": "FAIL",
+    "joints": [
+      {"name": "joint2", "status": "FAIL", "targets": [ /* TargetSolution */ ]}
+    ]
+  },
+  "stability": {"status": "PASS", "targets": []},
+  "workspace": {"status": "PASS", "targets": []}
+}
+```
+
+### Error results
+
+Any failure — bad arguments, unreadable URDF, rejected override, unknown tool
+— returns a tool result with `isError` set and this payload. A failed call
+never terminates the server and never affects a later call.
+
+```json
+{
+  "error": {
+    "tool": "apply_overrides",
+    "type": "override_rejected",
+    "message": "no override was applied — every rejection is listed in details",
+    "details": [
+      {"target": "link3", "field": "length", "reason": "field 'length' is not an overridable safe scalar — ..."}
+    ]
+  }
+}
+```
+
+| `type` | Meaning |
+|---|---|
+| `invalid_arguments` | Missing, unknown, or wrongly-typed arguments. `details` lists every problem found, not just the first. |
+| `parse_error` | The URDF could not be read or parsed (`ParseError.message` is quoted). |
+| `input_error` | Arguments were well-formed but do not fit this robot (e.g. `payload_link` names no link), or `.xacro` preprocessing failed. |
+| `override_rejected` | One or more overrides were invalid. All-or-nothing: nothing was applied and `details` carries every `OverrideError`. |
+| `unknown_tool` | No tool by that name. |
+| `internal_error` | Backstop for an unexpected failure; carries `repr(exc)`, never a traceback. |
+
+### Stability of this contract
+
+Tool names, argument names, and result shapes are a stable contract on the
+same terms as the JSON report schema (v1.1–v1.5): no renames without a
+documented migration note. The report, task-query, comparison, and override
+shapes are documented once, above — the adapter forwards them unchanged.

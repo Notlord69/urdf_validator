@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<!--
+  Minimal .xacro fixture for the v1.5 acceptance suite (tests/test_v15_
+  acceptance.py, criterion 9 / amendment A3). No sample_urdf fixture is a
+  .xacro file, and A3's "temp file gone on return" behavior can only be
+  observed by actually driving xacro_handler.preprocess() through an MCP
+  tool call, so this file exists purely to trigger that code path. It has
+  no macros — a bare <robot> is valid xacro input — and parses to a single
+  massless, trivially valid link so the resulting report shape is not the
+  point of the test, only the temp-file lifecycle is.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="mcp_v15_minimal">
+  <link name="base_link">
+    <inertial>
+      <mass value="1.0"/>
+      <origin xyz="0 0 0"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+    </inertial>
+  </link>
+</robot>
