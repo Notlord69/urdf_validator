@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: urdf-validator
-Version: 1.0.0
+Version: 1.5.0
 Summary: Physics-aware URDF validation for the ROS 2 community
 License: MIT
 Classifier: License :: OSI Approved :: MIT License
@@ -26,6 +26,8 @@ Provides-Extra: xacro
 Requires-Dist: xacro; extra == "xacro"
 Provides-Extra: mujoco
 Requires-Dist: mujoco; extra == "mujoco"
+Provides-Extra: mcp
+Requires-Dist: mcp>=2; extra == "mcp"
 Provides-Extra: full
 Requires-Dist: xacro; extra == "full"
 Requires-Dist: mujoco; extra == "full"
@@ -65,6 +67,7 @@ Optional extras:
 ```bash
 pip install "urdf-validator[xacro]"   # adds xacro preprocessing
 pip install "urdf-validator[mujoco]"  # adds MuJoCo deep-validation mode
+pip install "urdf-validator[mcp]"     # adds the MCP server for AI agents
 pip install "urdf-validator[full]"    # adds both xacro and mujoco
 ```
 
@@ -526,7 +529,7 @@ The tool never presents an estimated value as ground truth.
 
 ## JSON output
 
-Every run writes `<robot>_validation.json` containing the full `ValidationReport`. The schema is stable across minor versions and documented in [`docs/json_schema.md`](docs/json_schema.md).
+Every run writes `<robot>_validation.json` containing the full `ValidationReport`. The schema is stable across minor versions and documented in [`json_schema.md`](json_schema.md).
 
 ```json
 {
@@ -596,7 +599,52 @@ responses = run_pick_sweep([req1, req2, req3])
 # Returns List[TaskQueryResponse], order preserved, failures isolated
 ```
 
-Full schema: [`urdf_validator_main/api/task_schema.py`](urdf_validator_main/api/task_schema.py) and [`urdf_validator_main/api/task_runner.py`](urdf_validator_main/api/task_runner.py). Documented in [`docs/json_schema.md`](docs/json_schema.md).
+Full schema: [`urdf_validator_main/api/task_schema.py`](urdf_validator_main/api/task_schema.py) and [`urdf_validator_main/api/task_runner.py`](urdf_validator_main/api/task_runner.py). Documented in [`json_schema.md`](json_schema.md).
+
+---
+
+## MCP server (for AI agents)
+
+The same capability surface is available over the [Model Context Protocol](https://modelcontextprotocol.io) as a local, stdio-based server. It is a thin adapter: it adds no validation logic, and every number it returns is produced by the pipeline documented above.
+
+```bash
+pip install "urdf-validator[mcp]"
+urdf_validate_mcp            # serves MCP over stdio; not meant to be run by hand
+```
+
+Without the extra installed, the command prints `[ERROR] MCP support requires the 'mcp' extra: pip install "urdf-validator[mcp]"` and exits `2`. Everything else in the tool works exactly as before — the `mcp` dependency is imported lazily and is never needed by the CLI or the Python API.
+
+Client configuration (the shape most MCP clients use):
+
+```json
+{
+  "mcpServers": {
+    "urdf_validator": {
+      "command": "urdf_validate_mcp",
+      "args": []
+    }
+  }
+}
+```
+
+Six tools are exposed:
+
+| Tool | Arguments | Returns |
+|---|---|---|
+| `validate_urdf` | `urdf_path`, optional `payload_mass`, `payload_link`, `robot_type` | The full validation report as JSON — the same object the CLI writes to `<stem>_validation.json` |
+| `run_pick_task` | `TaskQueryRequest` fields (`urdf_path`, `target_position`, `target_orientation`, `object_mass_kg`, `terrain_angle_deg`, `overrides`) | One `TaskQueryResponse` |
+| `run_pick_sweep` | `requests`: array of the above | A list of `TaskQueryResponse`, request order preserved |
+| `solve_target` | `urdf_path`, optional `payload_mass`, `payload_link` | Only the reverse-solved `targets` per check, plus each check's status — a "what would it take?" query with no prior report needed |
+| `compare_reports` | `report_a`, `report_b` (report objects the caller supplies) | A `ComparisonResult`: status transitions, deltas, per-lever percentage of the gap closed |
+| `apply_overrides` | `urdf_path`, `overrides` | The full report for the patched robot — or a structured rejection listing every invalid override |
+
+Properties worth relying on:
+
+- **Stateless.** The server keeps no history, caches nothing, and writes no files — `validate_urdf` *returns* the report rather than exporting it. Pass every input on every call (that is why `compare_reports` takes both reports).
+- **Never crashes.** A bad path, a malformed URDF, or garbage arguments come back as a tool error result carrying a structured `{"error": {"tool", "type", "message", "details"}}` payload. The session stays usable.
+- **Honest values.** Confidence labels, `null`-with-reason targets, and the unranked list of levers reach the agent unchanged — the adapter never upgrades a confidence or drops a field.
+
+Tool argument and result shapes are documented in [`json_schema.md`](json_schema.md#mcp-adapter-v15).
 
 ---
 
@@ -626,6 +674,8 @@ Full schema: [`urdf_validator_main/api/task_schema.py`](urdf_validator_main/api/
 **Xacro** (`pip install "urdf-validator[xacro]"`): adds `xacro` (`.xacro` / `.xacro` preprocessing)
 
 **MuJoCo** (`pip install "urdf-validator[mujoco]"`): adds `mujoco` (`--deep` simulation mode)
+
+**MCP** (`pip install "urdf-validator[mcp]"`): adds the `mcp` SDK (the `urdf_validate_mcp` stdio server)
 
 **Full** (`pip install "urdf-validator[full]"`): both `xacro` and `mujoco`
 
