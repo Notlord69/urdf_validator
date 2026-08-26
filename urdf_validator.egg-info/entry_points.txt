@@ -1,3 +1,0 @@
-[console_scripts]
-urdf_validate = urdf_validator_main.cli:main
-urdf_validate_mcp = urdf_validator_main.mcp_adapter.server:main
