@@ -275,7 +275,7 @@ class TestCriterion1EndToEndSurface:
         assert _live["tool_names"] == list(_EXPECTED_TOOLS)
 
     def test_server_reports_the_v15_version(self, _live):
-        assert _live["server_version"] == "1.5.0"
+        assert _live["server_version"] == "1.5.1"
 
     def test_every_tool_has_a_description_and_object_schema(self, _live):
         for name in _EXPECTED_TOOLS:
@@ -312,7 +312,7 @@ class TestCriterion1EndToEndSurface:
         for key in ("urdf_path", "robot_name", "overall_status", "statics",
                     "stability", "workspace", "validator_version"):
             assert key in body
-        assert body["validator_version"] == "1.5.0"
+        assert body["validator_version"] == "1.5.1"
 
     def test_apply_overrides_body_over_stdio_reflects_the_override(self, _live):
         body = _live["calls"]["happy:apply_overrides"]["body"]
@@ -413,8 +413,8 @@ class TestCriterion2ByteIdentity:
         mcp_dict = json.loads(mcp_text)
 
         assert _strip_timestamp(cli_text) == _strip_timestamp(mcp_text)
-        assert cli_dict["validator_version"] == "1.5.0"
-        assert mcp_dict["validator_version"] == "1.5.0"
+        assert cli_dict["validator_version"] == "1.5.1"
+        assert mcp_dict["validator_version"] == "1.5.1"
         assert "timestamp" in cli_dict and "timestamp" in mcp_dict
 
 
