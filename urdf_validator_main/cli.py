@@ -31,9 +31,25 @@ _HEURISTIC_TO_CLI_TYPE: Dict[str, str] = {
     "unknown": "unknown",
 }
 
+# Declared types that agree with a heuristic finding beyond its primary entry
+# above. A biped's heuristic finding of "humanoid" honestly matches either the
+# specific declared "humanoid" or the general declared "legged" — sibling to
+# the existing quadruped→legged normalization.
+_HEURISTIC_ALSO_MATCHES: Dict[str, str] = {
+    "humanoid": "legged",
+}
+
 
 def _normalize_robot_type(heuristic: str) -> str:
     return _HEURISTIC_TO_CLI_TYPE.get(heuristic, "unknown")
+
+
+def _robot_type_matches(heuristic: str, declared: str) -> bool:
+    """True if *declared* (--robot-type) agrees with the heuristic finding."""
+    return (
+        declared == _normalize_robot_type(heuristic)
+        or declared == _HEURISTIC_ALSO_MATCHES.get(heuristic)
+    )
 
 
 def _build_limits_angles(parsed) -> Dict[str, float]:
@@ -504,7 +520,7 @@ def main() -> None:
         # Add robot-type mismatch warning when declared and heuristic disagree
         if args.robot_type:
             normalized_heuristic = _normalize_robot_type(heuristic_type)
-            if normalized_heuristic != args.robot_type:
+            if not _robot_type_matches(heuristic_type, args.robot_type):
                 report.warnings.append(
                     f"User declared --robot-type={args.robot_type}, but link-name heuristic"
                     f" suggests {normalized_heuristic}"

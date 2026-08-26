@@ -69,6 +69,7 @@ from urdf_validator_main.cli import (
     _derive_overall_status,
     _normalize_robot_type,
     _populate_link_physics,
+    _robot_type_matches,
 )
 from urdf_validator_main.parser.urdf_adapter import ParseError, ParsedRobot, load_urdf
 from urdf_validator_main.physics.reverse_solve import annotate as run_reverse_solve
@@ -243,7 +244,7 @@ def _run_pipeline(
 
     if robot_type:
         normalized_heuristic = _normalize_robot_type(heuristic_type)
-        if normalized_heuristic != robot_type:
+        if not _robot_type_matches(heuristic_type, robot_type):
             report.warnings.append(
                 f"User declared --robot-type={robot_type}, but link-name heuristic"
                 f" suggests {normalized_heuristic}"
