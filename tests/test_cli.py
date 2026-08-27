@@ -611,6 +611,56 @@ def test_robot_type_does_not_crash(monkeypatch, tmp_path):
     assert code in (0, 1, 2)
 
 
+_HUMANOID_URDF = """\
+<?xml version="1.0"?>
+<robot name="biped_bot">
+  <link name="base_link">
+    <inertial>
+      <mass value="5.0"/>
+      <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
+    </inertial>
+  </link>
+  <link name="foot_link">
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+    </inertial>
+  </link>
+  <joint name="j_foot" type="fixed">
+    <parent link="base_link"/>
+    <child link="foot_link"/>
+    <origin xyz="0 0 -0.5" rpy="0 0 0"/>
+  </joint>
+</robot>
+"""
+
+
+def test_robot_type_humanoid_declared_legged_no_mismatch_warning(monkeypatch, tmp_path, capsys):
+    # Regression test for F3 (fixed in 001ab81, "humanoid declared-type
+    # false-positive in robot-type cross-check"). _HUMANOID_URDF has a
+    # "foot_link" and no wheel/quadruped keywords, so the link-name heuristic
+    # (detect_robot_type) resolves it to "humanoid". Before the fix,
+    # _HEURISTIC_TO_CLI_TYPE mapped humanoid -> "humanoid" only, so declaring
+    # the more general --robot-type=legged on this biped fired a false-positive
+    # "link-name heuristic suggests humanoid" mismatch WARNING, even though
+    # "legged" and "humanoid" are both honest readings of a biped. The fix
+    # (_robot_type_matches / _HEURISTIC_ALSO_MATCHES) accepts declared "legged"
+    # as agreeing with a heuristic "humanoid" finding, so no mismatch warning
+    # should be emitted.
+    import json
+    urdf = tmp_path / "biped.urdf"
+    urdf.write_text(_HUMANOID_URDF)
+    _run(monkeypatch, [str(urdf), "--robot-type", "legged"])
+    out = capsys.readouterr().out
+    # No mismatch warning printed to the terminal report.
+    assert "heuristic" not in out
+    # No mismatch warning recorded in the structured report either -- this
+    # asserts absence of the specific robot-type cross-check WARN entry, not
+    # merely that overall status isn't FAIL.
+    data = json.loads((tmp_path / "biped_validation.json").read_text())
+    assert not any("heuristic" in w for w in data["warnings"])
+
+
 # ---------------------------------------------------------------------------
 # --contact-links flag
 # ---------------------------------------------------------------------------

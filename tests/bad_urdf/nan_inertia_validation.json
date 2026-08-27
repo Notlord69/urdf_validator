@@ -4,7 +4,7 @@
   "robot_type": "unknown",
   "robot_type_confidence": "estimated",
   "timestamp": "2026-08-05T12:51:14.683933+00:00",
-  "validator_version": "1.5.0",
+  "validator_version": "1.5.1",
   "schema": {
     "status": "WARN",
     "critical_issues": [],
