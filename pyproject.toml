@@ -9,6 +9,7 @@ description = "Physics-aware URDF validation for the ROS 2 community"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.8"
+keywords = ["urdf", "ros", "ros2", "robotics", "validation", "physics", "simulation", "kinematics"]
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
@@ -29,6 +30,12 @@ dependencies = [
     "shapely",
     "ikpy",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Notlord69/urdf_validator"
+Repository = "https://github.com/Notlord69/urdf_validator"
+Changelog = "https://github.com/Notlord69/urdf_validator/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Notlord69/urdf_validator/issues"
 
 [project.optional-dependencies]
 xacro = ["xacro"]

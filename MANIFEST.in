@@ -1,0 +1,22 @@
+# Ship source, license, and the docs of record. Nothing else.
+include LICENSE
+include README.md
+include CHANGELOG.md
+include json_schema.md
+include pyproject.toml
+
+# Private working material — never distributed.
+prune Main_urdf_validator_PRD
+prune Main_PRD_status
+prune Agentic_WorkFlow_Setup
+prune docs
+prune .claude
+prune .github
+prune .superpowers
+exclude CLAUDE.md
+exclude Temp_Progress.md
+exclude MUJOCO_LOG.TXT
+
+# Build / cache noise.
+prune .pytest_cache
+global-exclude *.py[cod] __pycache__ *.so .DS_Store *.swp *~

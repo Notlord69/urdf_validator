@@ -1,5 +1,147 @@
 # Changelog
 
+## v1.5.1 — 2026-08-27
+
+Bugfix release. No schema change, no new computation — the JSON report is
+byte-identical to v1.5.0 for every robot that did not hit the fixed path.
+
+- Fix (F3): declaring `--robot-type legged` on a robot whose link-name
+  heuristic resolves to `humanoid` (a biped) no longer emits a false-positive
+  robot-type cross-check mismatch warning. `_HEURISTIC_TO_CLI_TYPE` normalized
+  `quadruped -> legged` but not `humanoid`, so a correctly-declared legged
+  biped tripped the mismatch path. Fixed additively via `_robot_type_matches()`
+  in `cli.py` (and mirrored in `mcp_adapter/server.py`), which accepts declared
+  `legged` *or* `humanoid` for a humanoid heuristic finding rather than
+  collapsing the map entry — `legged` and `humanoid` remain distinct capability
+  profiles.
+- Permanent F3 regression test in `tests/test_cli.py` (confirmed to fail
+  against the pre-fix commit).
+- Two stale acceptance fixtures (`tests/bad_urdf/{missing_mesh,nan_inertia}_validation.json`)
+  re-stamped `validator_version` `1.5.0 -> 1.5.1`; a repo-wide grep found no
+  others.
+- `pyproject.toml` is the single version-declaration site — `cli.py` and
+  `mcp_adapter/server.py` both read it at runtime via
+  `importlib.metadata.version("urdf-validator")`.
+
+---
+
+## v1.5.0 — 2026-08-05
+
+Agent Protocol Exposure — Open MCP Adapter (PRD Q2 §3.13, Phase 17). The full
+validator surface is now reachable by AI agents over the Model Context Protocol,
+with no change to the CLI or Python API.
+
+- New package `urdf_validator_main/mcp_adapter/`: a stdio MCP server exposing
+  six tools — `validate_urdf`, `solve_target`, `compare_reports`,
+  `apply_overrides`, `run_pick_task`, `run_pick_sweep`. Launched via the new
+  `urdf_validate_mcp` console script.
+- New optional extra `[mcp]` (`pip install "urdf-validator[mcp]"`, `mcp>=2`).
+  The `mcp` import is lazy: without the extra, `urdf_validate_mcp` prints
+  `[ERROR] MCP support requires the 'mcp' extra` and exits `2`; the CLI and
+  Python API are entirely unaffected.
+- `validate_urdf` returns the report rather than exporting it — byte-identical
+  to the CLI JSON (minus the timestamp). Verified across the reference robots.
+- Stateless by construction: no history, no caching, no files written. Every
+  input is passed on every call (hence `compare_reports` takes both reports).
+- Never-crash carried into the protocol layer: malformed input yields a
+  structured tool result, never a transport-level error; the server recovers
+  in-session.
+- `json_schema.md`: new "MCP Adapter (v1.5)" section documenting every tool's
+  argument and result shape.
+- Validation: `test_mcp_adapter.py` + `test_v15_acceptance.py` (10/10
+  falsifiable criteria PASS, independent gatekeeper ACCEPT). Full suite
+  999 passed / 2 skipped.
+
+---
+
+## v1.4.0 — 2026-07-30
+
+Consolidated Actionable Report & Output Polish (PRD Q2 §3.12, Phase 16).
+Presentation only — **no new computation, and the JSON report is byte-identical
+to v1.3**. Everything the terminal now shows was already in the report model.
+
+- Every FAIL/WARN terminal line that has a closed-form remedy now carries a
+  second line with its target/gap triad, e.g.
+  `-> target: >= 58.2 Nm effort, OR <= 1.4 kg payload, OR -20% link3 length`.
+  Multiple levers are shown side by side joined with `OR`, in list order,
+  never ranked (HON-5). Null-`target_value` levers are dropped; if all are
+  null the line is omitted (the JSON still carries `target_value: null` +
+  `target_reason`).
+- Applies to per-joint statics lines, the stability badge line when unstable,
+  and workspace/task failure lines.
+- Inertia-divergence (`inertia_divergence_pct`, v1.1) is now visible in
+  terminal output, not JSON-only.
+- The §5.2 five-step flagship iterative-arm scenario — the primary correctness
+  gate of the Q2 revision — passes end to end.
+- `report/formatter.py` only; `report/models.py` and `report/json_export.py`
+  untouched. `test_formatter.py` + `test_v14_acceptance.py`; full suite
+  863 passed / 2 skipped.
+
+---
+
+## v1.3.0 — 2026-07-25
+
+Fast-Iteration Input Layer (PRD Q2 §3.11, Phase 15) — patch a URDF's scalar
+values from the command line without editing the file, so a design iteration is
+one flag away instead of an edit-save-rerun cycle.
+
+- New module `api/overrides.py`: safe-scalar override engine reading the parsed
+  IR and re-running the existing pipeline against the patched values. No forward
+  math duplicated.
+- `--override "target.field=value[,...]"`: inline overrides, e.g.
+  `--override "link3.mass=2.0,shoulder_joint.effort=50"`. Bare `payload_mass` /
+  `payload_link` are task-level. Geometric and unknown fields are rejected with
+  a structured `[ERROR] override rejected: ...` line; application is
+  all-or-nothing.
+- `--override-file overrides.json`: file form for larger sets, and the only way
+  to supply a full 6-element inertia tensor. Combinable with `--override`.
+- An override-supplied `mass` / `inertia` surfaces in the report with `exact`
+  confidence (it was declared by the user); an override never upgrades the
+  confidence of anything it did not set. The report schema is unchanged by
+  overrides — an override only changes the numbers existing checks compute from.
+- `TaskQueryRequest` gains an optional `overrides` field (same
+  `{target, field, value}` dicts); default `None` reproduces prior behavior
+  byte-for-byte. Invalid overrides -> `UNKNOWN` with a single
+  `override_validation` sub-check, mirroring the `urdf_load` parse-error shape.
+- `run_pick_sweep()` accepts overrides as a sweep axis and parses each distinct
+  path once per call.
+- `json_schema.md`: "Overrides (v1.3)" section. Full suite 820 passed /
+  2 skipped; independent gatekeeper ACCEPT.
+
+---
+
+## v1.2.0 — 2026-07-16
+
+Delta & Comparison Layer (PRD Q2 §3.10, Phase 14) — diff two validation runs so
+an iteration reports not just its own numbers but how much of the previous gap
+it closed.
+
+- New module `api/compare.py`: `compare_reports(report_a, report_b) ->
+  ComparisonResult` — a pure, stateless diff between two already-produced
+  reports (dicts as written by `report/json_export.py`, or `ValidationReport` /
+  `TaskQueryResponse` instances). No filesystem access, no persisted history;
+  the caller supplies both reports.
+- `--compare-to PRIOR_JSON`: compares the current run against a prior JSON
+  report. The comparison is printed *alongside* the normal report, never
+  instead of it.
+- Per-check: status transition, the scalar the status derives from (`margin`
+  for a joint, `margin_mm` for stability) and its `delta`, plus `presence`
+  (`both` / `added` / `removed`). Checks are matched by name, never
+  fuzzy-matched, never silently dropped.
+- Per-lever, over the v1.1 `targets` lists: `target_value` on each side,
+  `target_mismatch`, `delta`, and `pct_of_gap_closed` (`delta / gap_a`) — how
+  much of report A's original gap the change actually closed. Null-with-reason
+  on a zero denominator or a missing input.
+- `schema_note` when `robot_name` / `robot_type` / `validator_version` differ
+  between the two reports; informational only, never blocks the comparison.
+- `SchemaReport` and per-link `LinkPhysicsReport` are excluded from numeric
+  diffing (no status scalar to compare).
+- `json_schema.md`: `ComparisonResult` / `CheckComparison` / `LeverComparison`
+  documented; field names declared stable across v1.2–v1.5. New tests in
+  `test_compare.py` and `test_cli.py`.
+
+---
+
 ## v1.1.0 — 2026-07-10
 
 Reverse-Solve & Target-Value Layer (PRD Q2 §3.9, Phase 8) — every check that can

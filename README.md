@@ -16,7 +16,9 @@ The tool is designed to work on **any** URDF, not just a curated set of referenc
 | **Statics** | Full-body centre of mass, gravity torque per actuated joint, motor effort margins (PASS / WARN / FAIL), weakest joint identification |
 | **Stability** | Support polygon from wheel/caster contacts, COM-over-polygon containment, signed margin in mm, tip direction, COM height ratio, tipping angle |
 | **Workspace** | Monte Carlo FK reach envelope (max / vertical / horizontal), task-specific reachability, COM stability during reach |
-| **User overrides** | `--robot-type`, `--contact-links`, `--arm-root`/`--arm-tip` let you declare what heuristics cannot reliably infer; declared values are labeled `exact` and heuristics run as a cross-check |
+| **Remedies** | For every FAIL/WARN with a closed-form inverse: the value that would make it pass — minimum effort, maximum payload, link-length change, contact offset, required reach — reported as a `target` / `gap` triad, never higher-confidence than the forward computation it derives from, never an invented number |
+| **Comparison** | `--compare-to prior.json` diffs two runs: status transitions, margin deltas, and how much of the previous gap each change closed |
+| **User overrides** | `--robot-type`, `--contact-links`, `--arm-root`/`--arm-tip` to declare what heuristics cannot reliably infer; `--override` / `--override-file` to patch masses, inertias, and joint limits without editing the URDF. Declared values are labeled `exact` and heuristics run as a cross-check |
 | **Deep (optional)** | MuJoCo simulation cross-validation of gravity torques and COM; `SIMULATED` confidence badge |
 
 ## Installation
@@ -62,6 +64,11 @@ urdf_validate <urdf_file> [options]
 | `--contact-links LINKS` | `"l1,l2,l3"` | — | Comma-separated list of ground-contact link names. Bypasses the geometry heuristic for stability polygon construction; useful for legged robots or non-standard wheel naming. |
 | `--arm-root LINK` | link name | — | Root link of the arm chain. Bypasses the DOF-heuristic arm detection. Must be used together with `--arm-tip`. |
 | `--arm-tip LINK` | link name | — | End-effector link of the arm chain. Bypasses the DOF-heuristic arm detection. Must be used together with `--arm-root`. |
+| `--payload-mass KG` | float | — | Payload mass carried at the end-effector (or `--payload-link`). Gravity torques are recomputed with the load included. |
+| `--payload-link LINK` | link name | detected EE | Link the payload is attached to. Requires `--payload-mass`. |
+| `--compare-to PRIOR_JSON` | path | — | Diff this run against a prior JSON report. The comparison is printed alongside the normal report, not instead of it. |
+| `--override SPEC` | `"link3.mass=2.0,joint2.effort=50"` | — | Safe-scalar override(s), `target.field=value` comma-separated. Bare `payload_mass` / `payload_link` are task-level. Geometric/unknown fields are rejected; application is all-or-nothing. |
+| `--override-file OVERRIDES_JSON` | path | — | JSON file of overrides (`{"overrides": [{"target", "field", "value"}]}`); the only way to supply a full 6-element inertia tensor. Combinable with `--override`. |
 
 ### Exit codes
 
@@ -348,6 +355,48 @@ urdf_validate fetch.urdf --payload-mass 5.0 --payload-link gripper_link
 
 Payload torque is computed as the cross-product of the moment arm (payload link world position relative to each joint) × gravity force. The same PASS/WARN/FAIL thresholds apply: PASS ≥ 1.5×, WARN 1.0–1.5×, FAIL < 1.0×.
 
+## Iterating on a design
+
+Every FAIL/WARN that has a closed-form inverse already tells you the value that would make it pass — the `-> target:` line under the finding, e.g.:
+
+```
+[FAIL] shoulder_lift_joint — req 49.0 Nm, declared 30.0 Nm, margin 0.61
+       -> target: >= 58.2 Nm effort, OR <= 1.4 kg payload, OR -20% link3 length
+```
+
+Multiple remedies are shown side by side, unranked — the tool computes the options, you choose.
+
+**Patch values without editing the URDF.** Try a change directly from the command line:
+
+```bash
+urdf_validate my_arm.urdf --override "link3.mass=2.0,shoulder_lift_joint.effort=50"
+
+# a full inertia tensor needs the file form (combinable with --override)
+urdf_validate my_arm.urdf --override-file overrides.json
+```
+
+```json
+{
+  "overrides": [
+    {"target": "link3", "field": "mass", "value": 2.0},
+    {"target": "link3", "field": "inertia", "value": [0.01, 0.0, 0.0, 0.01, 0.0, 0.02]},
+    {"target": null, "field": "payload_mass", "value": 1.5}
+  ]
+}
+```
+
+An override-supplied value surfaces with `exact` confidence; it never upgrades the confidence of anything it did not set, and the report schema is unchanged. Geometric or unknown fields are rejected with one `[ERROR] override rejected: ...` line each, and application is all-or-nothing.
+
+**Diff two runs.** Point a run at an earlier run's JSON to see what moved:
+
+```bash
+urdf_validate my_arm.urdf                     # writes my_arm_validation.json
+cp my_arm_validation.json baseline.json
+urdf_validate my_arm.urdf --override "link3.mass=2.0" --compare-to baseline.json
+```
+
+The comparison prints alongside the normal report: status transitions per check, the delta on the scalar each status derives from, and `pct_of_gap_closed` — how much of the previous run's gap the change actually closed.
+
 ## CI integration
 
 ### GitHub Actions
@@ -627,6 +676,12 @@ Tool argument and result shapes are documented in [`json_schema.md`](json_schema
 | v0.10 | 10 | **Complete** | Structured task-query API for AI agents and programmatic callers |
 | v0.11 | 11 | **Complete** | Hardening — full regression across all 6 reference robots + capability-profile URDFs |
 | v1.0 | 12 | **Complete** | Public release — ROS Discourse announcement, pip package |
+| v1.1 | 13 | **Complete** | Reverse-solve & target-value layer — every invertible check reports the value that would make it pass (`target` / `gap` triad); declared-vs-derived inertia divergence |
+| v1.2 | 14 | **Complete** | Delta & comparison layer — `--compare-to` diffs two runs (status transitions, margin deltas, `pct_of_gap_closed`) |
+| v1.3 | 15 | **Complete** | Fast-iteration input layer — `--override` / `--override-file` patch scalars, inertia tensors, and joint limits without editing the URDF |
+| v1.4 | 16 | **Complete** | Consolidated actionable report — every FAIL/WARN terminal line carries its remedy triad; inertia divergence surfaced in terminal output (presentation only, JSON unchanged) |
+| v1.5 | 17 | **Complete** | Agent protocol exposure — `urdf_validate_mcp` MCP server, six tools, `[mcp]` extra |
+| v1.5.1 | — | **Complete** | Bugfix — humanoid/legged declared-type false-positive warning (F3) |
 
 ---
 
@@ -654,7 +709,6 @@ No ROS installation required.
 | SDF format | `DEFERRED` — only URDF (`.urdf`, `.xacro`) is supported. |
 | `--pose home` | Falls back silently to zero pose. URDF has no standard home-configuration field (that lives in SRDF, outside this tool's scope). |
 | Per-arm workspace breakdown | Aggregated — `max_reach` is the maximum across all detected arm chains, not per-arm. A `--detailed` flag for per-arm envelopes is a planned future feature. |
-| Payload capacity estimate | `PENDING` — `payload_capacity_kg` field exists in the report model but is not populated. |
 | `--deep` drop test | `PENDING` — the 2-second MuJoCo drop test is not implemented. Only the static cross-validation pass runs under `--deep`. |
 
 ## License
