@@ -127,21 +127,30 @@ def test_output_physics_section_shows_link_count(monkeypatch, tmp_path, capsys):
     assert "1 link —" in out  # singular, not "1 links"
 
 
-def test_broken_urdf_exits_2_no_crash(monkeypatch, capsys):
-    code = _run(monkeypatch, [str(BAD_URDF_DIR / "broken.urdf")])
+# These three run the CLI against tracked hostile-input fixtures. They MUST pass
+# --output-dir tmp_path: without it the CLI writes <stem>_validation.json next to
+# the input, i.e. into tests/bad_urdf/, mutating tracked files on every suite run
+# and leaving the tree dirty. Assertions here are on exit code and stdout only —
+# the never-crash contract — so the report file itself is a byproduct, deliberately
+# discarded with the tmp_path.
+def test_broken_urdf_exits_2_no_crash(monkeypatch, capsys, tmp_path):
+    code = _run(monkeypatch, [str(BAD_URDF_DIR / "broken.urdf"),
+                              "--output-dir", str(tmp_path)])
     assert code == 2
     assert "[ERROR]" in capsys.readouterr().out
 
 
-def test_missing_mesh_no_crash(monkeypatch, capsys):
+def test_missing_mesh_no_crash(monkeypatch, capsys, tmp_path):
     # Mesh existence check is deferred to v0.5 — no schema errors expected
-    code = _run(monkeypatch, [str(BAD_URDF_DIR / "missing_mesh.urdf")])
+    code = _run(monkeypatch, [str(BAD_URDF_DIR / "missing_mesh.urdf"),
+                              "--output-dir", str(tmp_path)])
     assert code == 0
 
 
-def test_nan_inertia_no_crash(monkeypatch, capsys):
+def test_nan_inertia_no_crash(monkeypatch, capsys, tmp_path):
     # NaN inertia triggers WARN (exit 1) or ParseError (exit 2) — both acceptable
-    code = _run(monkeypatch, [str(BAD_URDF_DIR / "nan_inertia.urdf")])
+    code = _run(monkeypatch, [str(BAD_URDF_DIR / "nan_inertia.urdf"),
+                              "--output-dir", str(tmp_path)])
     assert code in (1, 2)
 
 
