@@ -711,6 +711,14 @@ No ROS installation required.
 | Per-arm workspace breakdown | Aggregated — `max_reach` is the maximum across all detected arm chains, not per-arm. A `--detailed` flag for per-arm envelopes is a planned future feature. |
 | `--deep` drop test | `PENDING` — the 2-second MuJoCo drop test is not implemented. Only the static cross-validation pass runs under `--deep`. |
 
+## Project direction
+
+The `urdf_validator` CLI — its deterministic physics, confidence labels, never-crash and exit-code contracts, and reference-robot verification — is MIT and stays MIT.
+
+Work aimed at teams rather than single URDFs is coming separately, as a commercial offering that funds ongoing maintenance of the free core: a hosted service, telemetry-calibrated confidence, and a sim-to-real workflow mode. The open tool uploads nothing — your URDFs and telemetry stay with you.
+
+Teams wanting early access can reach out via email (m06robotic@gmail.com).
+
 ## License
 
 MIT
